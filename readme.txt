@@ -5,4 +5,5 @@ played from x1carbon git-bash
 
 This line is added by cloned copy of repository, then pushed back to parent
 at WorkAndHints/git/myapp
+Added this line from commandline project (not IDEA project) and commited and pushed
 
