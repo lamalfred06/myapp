@@ -89,6 +89,18 @@ WhenToMeet
 midWeek="Wed"
 WhenToMeet
 
+what does $1 mean ?
+
+alias cannot take parameters
+
+multiline echo
+    echo "abc \
+    def \
+    xyz"
+
+    echo 'abc \
+    def \
+    xyz'
 
 find and xargs
     alfredMacBookAir /Users/alfred/IdeaProjects OSX
