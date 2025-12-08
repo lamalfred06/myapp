@@ -1,0 +1,100 @@
+how to use the _bashrc_winfred
+why _bashrc_winfred instead of .bashrc
+source and mysh
+the command prompt
+how I install in all servers in office
+
+Go through the _bashrc
+    alias
+    myFunctions
+    which
+    type
+
+ssh to various servers (DS720, JoannaMacMini, pi, vm's in DS720)
+
+Some simple useful functions
+    calc
+    mini_http
+===========================================================================
+
+scripts that goes through all servers and install something,and script to verify
+https://github.com/lamalfred06/hello-world/blob/master/Loop_Servers_bashScript
+
+delRaw.sh
+/Users/alfred/Photos/delRaw.sh
+
+Demo of replay_expand
+    ~/scripts/replay_expand
+        alfredMacBookAir /Users/alfred OSX
+        (base) 20/11/25 23:09:03 $ sed 's/,/|/g' abc.txt
+        ab|abcde|xxx|yyyyyyyyyy|12
+        abcde|xxx|yyyyyyyyyy|12|123Xyz|ABC
+        alfredMacBookAir /Users/alfred OSX
+        (base) 20/11/25 23:09:55 $ sed 's/,/|/g' abc.txt | replay_expand
+        ab   |abcde|xxx       |yyyyyyyyyy|12
+        abcde|xxx  |yyyyyyyyyy|12        |123Xyz|ABC
+        alfredMacBookAir /Users/alfred OSX
+        (base) 20/11/25 23:10:09 $ sed 's/,/|/g' abc.txt > aaa.txt
+        alfredMacBookAir /Users/alfred OSX
+        (base) 20/11/25 23:10:32 $ replay_expand  aaa.txt
+        ab   |abcde|xxx       |yyyyyyyyyy|12
+        abcde|xxx  |yyyyyyyyyy|12        |123Xyz|ABC
+    use inside vi
+        re
+
+ab|abcde|xxx|yyyyyyyyyy|12
+abcde|xxx|yyyyyyyyyy|12|123Xyz|ABC
+ab|abcde|xxx|yyyyyyyyyy|12
+abcde|xxx|yyyyyyyyyy|12|123Xyz|ABC
+
+rc and grep options
+you can only echo rc
+
+what is && and ||
+rc and test
+
+Script's 'if'
+syntax of 'if'
+if statement
+    line 89, 106, 119 of _bashrc
+
+How to do 'and', 'or' in script
+    line 1268, 187 of _bashrc
+
+===============================================
+
+Strong and Weak quote
+
+midWeek="Wed"
+echo I see you ${midWeek}
+echo "I see you $midWeek"
+echo "I see you ${midWeek}"
+echo 'I see you ${midWeek}'
+
+alias whenToMeet="echo I see you $midWeek"
+whenToMeet
+midWeek="Thur"
+whenToMeet
+
+alias whenToMeet='echo I see you $midWeek'
+whenToMeet
+
+difference between functuion and alias
+
+WhenToMeet() {
+    echo I see you $midWeek
+}
+WhenToMeet
+
+midWeek="Wed"
+WhenToMeet
+
+
+find and xargs
+    alfredMacBookAir /Users/alfred/IdeaProjects OSX
+        find . -type f | grep java$ | xargs grep -n Optional 2>/dev/null
+        find . -type f | grep java$ | xargs grep -n Optional >out
+        find . -type f | grep java$ | xargs grep -n Optional >>out
+        find . -type f | grep java$ | xargs grep -n Optional 2>&1 1>outout
+
+        find . -type f | grep java$ | xargs grep -n Optional 2>/dev/null | tee out

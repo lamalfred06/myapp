@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# 2025 Jan update
+# test by downloading from https://indexes.nikkei.co.jp/archives/file/nikkei_225_price_adjustment_factor_en.csv.
+# Then below code, using 'column' util, do the almost equivalent of replay_expand
+# sed 's/","/|/g; /Date of Data/d' nikkei_225_price_adjustment_factor_en.csv| column -s'|' -t
+
+curpath=`dirname $0`
+
+# called like replay_expand filename > out  for default "|" separator
+# called like replay_expand filename "," > out  for csv file created by 'select /*csv*/ * from ..' in SQLDeveloper
+# called like replay_expand filename "\t"> out  for tab delimited file
+
+# use FindAwkFS() to find separator instead of using multiple FS like below
+# which creates output with [|\t] literally as field separator, unless you also specify OFS explicitly
+#awk -f $curpath/replay_expand.awk -v fn=$1 -v FS="${2:-[|\t]}" # default either of | or \t
+
+# For comparison, replay_expanda.awk can be used as filter, while replay_expand.awk cannot, because of need to use 'fn' variable
+#awk -f $curpath/replay_expand.awk -v fn=$1 -v FS="${2:-|}"
+awk -F"${2:-|}" -f $curpath/replay_expanda.awk $1

@@ -1,0 +1,1972 @@
+#!/bin/sh
+
+# This file is created to centralise .bashrc for use in various systems:
+# cygwin, osmc, ubuntu, synology, ...
+#
+# _bashrc_ubuntu16.04_2017Jul.txt was the name where most systems' .bashrc linked to or 'source' from
+# linked file _bashrc_201707_master.txt is created as after-thought for migration.
+# it's name should not change until every system migrated their .bashrc link to '_bashrc_201707_master.txt'
+#
+# From within Synology Linux session, _bashrc_201707_master.txt was created by hardlink :
+# ln _bashrc_ubuntu16.04_2017Jul.txt _bashrc_201707_master.txt
+#
+# cygwin and Notepad++(from Windows Explorer) cannot read _bashrc_201707_master.txt if it was created by softlink (ln -s)
+
+# cygwin and Notepad++(and command prompt) from T400S can read and edit hardlinked file
+# a) if the filesystem in cygwin is mounted as : #    mount -o noacl //192.168.11.28/homes/Public $SHARE
+#   Once cygwin or Notepad++ edit and write the _bashrc_201707_master.txt, the hardlink is broken, a new _bashrc_201707_master.txt is created
+#   Same if you edit _bashrc_ubuntu16.04_2017Jul.txt from cygwin, a new copy different from _bashrc_201707_master.txt will be created
+#   The above mount is created to make sure write access is guaranteed against the Synology NAS
+# b) if the filesystem in cygwin is accessing y: as /cygdrive/y (like Notepad++ from Explorer)
+#   vi on _bashrc_201707_master.txt or _bashrc_ubuntu16.04_2017Jul.txt will not break the link
+# - Have to find another way to mount NAS (NFS ?) for cygwin to support bot (1)write access and (2)Unix softlink/hardlink
+# - Until then, use softlink for _bashrc_201707_master.txt to avoid redundancy and inconsistency by mistake
+# - or avoid cygwin?, use ssh to Synology when working on NAS files (But R is not supported in Synology?)
+# - what about 'ln' created by cygwin on the 2 different types of mount ? Does Linux systems support that ???
+# - what about 'mklink' created by win10 ? Does Linux systems support that ???
+# c) rather, Migrated everything in 1 go to _bashrc_201707_master.txt so no linking of any kind is needed
+# _bashrc_ubuntu16.04_2017Jul.txt is removed
+
+# do not run rest of this rc file if Not in bash interactive mode
+[[ $- == *i* ]] || return
+
+#umask 022
+# use (.. xxx...) to group commands works, however, it will execute xxx only in a subshell
+# alias mysh='([ -f ~/.bashrc ] && source ~/.bashrc) || ([ -f ~/.bash_profile ] && source ~/.bash_profile) || source ~/.profile'
+#
+# below also wrong, '&&' has higher precedence than '||' so the 'source ..' will execute twice if both .bashrc and .bashrc exist
+# but you only want to do 1st 'source ..' if noth exists
+# alias mysh='[ -f ~/.bashrc ] && source ~/.bashrc || [ -f ~/.bash_profile ] && source ~/.bash_profile || source ~/.profile'
+#
+# Answer: use { xxx; } to group the statements, which is similar to (...) but runs in current shell
+# Note must add ';' and Note the space used in '{ ['
+alias mysh='{ [ -f ~/.bashrc ] && source ~/.bashrc;} || { [ -f ~/.bash_profile ] && source ~/.bash_profile;} || source ~/.profile'
+# Conclusion: it might be better to use explicit 'if ...;then ... elseif ... fi' syntax instead of the above error prone shorthand
+# alias vs='{ [ -f ~/.bashrc ] && vi ~/.bashrc;} || { [ -f ~/.bash_profile ] && vi ~/.bash_profile;} || vi ~/.profile'
+# or do it like below
+vs() {
+    [ -f ~/.bashrc ] && vi ~/.bashrc && return
+    [ -f ~/.bash_profile ] && vi ~/.bash_profile && return
+    vi ~/.profile
+}
+
+[ -z "$PS1" ] && return
+
+alias hr='rlwrap sqlplus hr/hrpw@ubuntuxe'
+#alias vf='vim /home/Alfred/Scale/filelist'
+alias vf='vim ~/Scale/filelist'
+alias src='cd ~/Scale'
+alias ..='cd ..'
+alias ec='echo $?'
+alias rc='echo $?'
+
+alias diskusage='du -h -d1 2> /dev/null'
+
+# If change this function, should test with type
+# myZshType/type/mysh/which/vim/cc/grep//ls/today/abc/ascii2chr/AlfredMacMini/... and output of 'alias' command or 'myfunctions'
+myZshType() {
+    # use '\type' to prevent recursion of 'type' calling myZshType from within this function
+    # Otherwise causes no file descriptors left, or max-recursion level reached issue
+    # Note: Same '\' trick can be used for temporary override of aliased commands, like 'ls', or 'grep' below
+
+    # below 2 outputs can be same if $1 is alias, is not found, is binary executable, ....
+    # preserve native 'zsh type' behavior, giving what source code contributed to $1 if $1 is a function
+    \type $1 > ~/.zshOut_0
+    # preserve bash behavior below doing \type -f
+    \type -f $1 > ~/.zshOut_1
+
+    # Note 1: 'diff' rc is 0 if no diff, opposite of what the 'diff' name suggest
+    # Note 2: 'grep -q' has no output but 'diff -q' has 1 line output if 2 files different
+    #          therefore pipe both 'diff' stdout and stderr to dev/null
+    # print 1st output only if it is different from 2nd output
+    if ! diff ~/.zshOut_0 ~/.zshOut_1 >/dev/null 2>&1 ; then
+        cat ~/.zshOut_0
+    fi
+    cat ~/.zshOut_1
+
+    # drill down 1 more level to see find more detail if $1 is an alias
+    # use zshOut_0 for such check because zshOut could be multi-line with word alias in some lines
+    if cat ~/.zshOut_0 | \grep -q 'alias for ' ; then
+
+        # try find where the alias comes from
+        whereIsAlias $1
+
+        # is an alias for what? try drill down to the aliased command 1 level if possible
+        aliasedCommand=`cat ~/.zshOut_0 | sed 's/.* alias for //' | sed 's/ .*//'`
+
+        # turn on below only for debug
+        #echo "aliasedCommand is $aliasedCommand"
+
+        # best effort basis to decide what to do
+        # ========================================================
+        # if aliasedCommand is not a function and not a pathed executable e.g. mysh, do not do anything
+        [[ "$aliasedCommand" =~ [^a-zA-Z0-9_/] ]] && return
+
+        # if aliasedCommand is the alias itself, e.g. ls->ls -G
+        if [ "$aliasedCommand" = "$1" ]; then
+            # use '\type -a' instead of '\type -f'
+            \type -a $1 | \grep -v 'alias for '
+        else
+            # print function detail (if a function) or executable path (if NOT a function), by recursively calling 'type'
+            type $aliasedCommand
+        fi
+
+    else # not an alias, 'cat' it if it is a script ?
+
+        # if pathed executable, it could be a script or a binary, use 'file' to find it's type
+        # test against 're', to identify that it is bourne script, try also some awk script and python script
+        lastCommand=`cat ~/.zshOut_0 | sed 's/.* //'`
+        if [[ "$lastCommand" =~ ^(/[a-zA-Z0-9_]+)+$ ]]; then  # lastCommand must be only /_xxxx/yyy/.../aaa/bbb
+            fileType=`file $lastCommand`
+            echo $fileType
+            if echo $fileType | \grep -q 'ASCII text' ; then
+                echo '==================='
+                cat $lastCommand
+            fi
+        fi
+
+    fi
+}
+
+whereIsAlias() {
+# Can Produce noise output in M1MBA regardless alias is rare (ascii2char) or common (grep, ls, ...)
+# Works better in DS720 for rare alias. Based on below
+# https://superuser.com/questions/1086175/find-the-location-of-an-alias-definition
+# zsh -i -x -c '' |& \grep $1 | \grep -v 'highlighting'
+
+# Below is much improved, much less noise
+zsh -i -x -c '' |& \grep "alias.*\<$1\>=" | \grep -v 'highlighting\|(eval)'
+# zsh -i -x -c '' 2>&1 \grep "alias.*\<$1\>=" | \grep -v 'highlighting\|(eval)'
+}
+
+setzsh() {
+    alias type=myZshType
+    #alias type='type -f' # similate bash 'type' behavior
+    alias which='/usr/bin/which'  # force bash behavior
+    alias env=set
+    alias vz='vi ~/.zshrc'
+    alias mz='source ~/.zshrc'
+
+    # See https://stackoverflow.com/questions/689765/how-can-i-change-the-color-of-my-prompt-in-zsh-different-from-normal-text
+    # And https://voracious.dev/blog/a-guide-to-customizing-the-zsh-shell-prompt
+    # https://dev.to/cassidoo/customizing-my-zsh-prompt-3417
+    autoload -Uz vcs_info
+    # precmd is always executed per prompt
+    precmd() {
+        vcs_info
+        zstyle ':vcs_info:git:*' formats '%b'
+        #print -rP "%F{green}%n%m %/%f %F{yellow}$PLATFORM %F{magenta}${vcs_info_msg_0_}%f"
+        # Choose any of 256 colors from .../scripts/print256colours.sh if $TERM is 'xterm-256color'
+        print -rP "%F{green}%n%m %/%f %F{yellow}$PLATFORM %F{156}${vcs_info_msg_0_}%f"
+        # print -rP "%F{green}%n%m %/%f %F{yellow}%*%f"
+    }
+    # use '\${....}' to force dynamic revaluation of the variable per prompt
+    # use just '${...}' if done from 'print' inside precmd()
+    # export PROMPT="%F{red}\${vcs_info_msg_0_}%f $ "
+    # export PROMPT="%F{cyan}%*%f $ "
+    # export PROMPT="%F{cyan}[%D{%f/%m/%y} %D{%L:%M:%S}]%f "
+    # Must use single quote for below, else will not update time
+    export PROMPT='%F{cyan}`date "+%d/%m/%y %H:%M:%S"`%f $ '
+
+    # bind HOME/END key
+    bindkey  "^[[H"   beginning-of-line
+    bindkey  "^[[F"   end-of-line
+
+    # allow # as comment in interactive shell
+    setopt INTERACTIVE_COMMENTS
+
+    # disable ls from coloring the output, unless find a good color scheme, the red output is extremely diffcult to read
+    alias disable_ls_color_zsh='echo pls edit /Users/alfred/.oh-my-zsh/lib/theme-and-appearance.zsh , add export DISABLE_LS_COLORS=true, or run \\ls instead of ls, or choose better terminal color scheme'
+}
+
+# M1MBA zsh compatibilty issues that need be solvced before switching to zsh
+# ~/.bash_profile is not run.  let ~/.zshrc source ~/.bash_profile
+# '==' need to be changed to '=', or else use [[ .. == ..]] instead of [ .. = .. ]
+# check whether conda (miniforge) addition to ~/.bashrc will work. Yes, seems jupyter works fine
+# chsh -s /bin/zsh or chsh -s /bin/bash  to switch between the 2 shells
+if [ $SHELL = '/bin/zsh' ] || [ $SHELL = '/opt/bin/zsh' ]; then
+    setzsh
+fi
+
+
+whereIsFunction()
+{
+    if [ $SHELL = '/bin/zsh' ] || [ $SHELL = '/opt/bin/zsh' ]; then
+        \type -a $1
+    else # bash shell
+        shopt -s extdebug;
+        declare -F $1
+    fi
+}
+
+
+# find out virtual envs available for activate-deactivate
+alias conda_env_list='conda env list'
+alias conda_312='conda activate python312'
+
+# for connecting to synology mariaDB's alfred@192.168.11.21 (from cygwin of Zotac)
+alias mysql_syno_alfred='mysql -h 192.168.11.28 -u alfred -p -P 3307'
+# below is supposed to be for 'root@localhost' when running mysql client from synology, however no such client installed as of apr 2018
+alias mysql_syno_root='mysql -u root -p -P 3307'
+
+# do platform specific processing
+PLATFORM='ANY'
+SHARE='SOMEWHERE'
+
+ECLIPSE_WORKSPACE='~/eclipse-workspace'
+
+isShareMounted() {
+    [ -d $SHARE/WorkAndHints ] && return 0 || return 1
+}
+
+# Only MacBookAir running 10.9.5 (Maverick) need this workaround
+#updateShareLocation() {
+#    ! [ $PLATFORM = 'OSX' ] && return
+#    SHARE=/Volumes/Public
+#    [ -d $SHARE_ALTERNATIVE_LOCATION/WorkAndHints ] && SHARE=$SHARE_ALTERNATIVE_LOCATION
+#    [ -d $SHARE_ALTERNATIVE1_LOCATION/WorkAndHints ] && SHARE=$SHARE_ALTERNATIVE1_LOCATION
+#}
+
+unalias mount_share 2>/dev/null
+
+if uname -a | grep -q "CYGWIN" ; then
+    PLATFORM='CYGWIN'
+    alias c:='cd /cygdrive/c'
+    alias d:='cd /cygdrive/d'
+    alias e:='cd /cygdrive/e'
+    alias f:='cd /cygdrive/f'
+    alias x:='cd /cygdrive/x'
+    alias y:='cd /cygdrive/y'
+    alias z:='cd /cygdrive/z'
+
+    WINHOME='/cygdrive/c/Users/alfred'
+    alias winhome='cd $WINHOME'
+    # SHARE=/cygdrive/y
+    SHARE=/share_alfred
+
+    ECLIPSE_WORKSPACE="$WINHOME/eclipse-workspace"
+
+    mount_share() {
+        echo Mounting $SHARE
+        # -f is important, to suppress default -notexec for network drives
+        # which will make all files in the mounted drive not executable
+        # For a *.sh to be executable, -f is not enough
+        # Must make sure first 2 letters in the file is '#!/....'
+        # https://cygwin.com/cygwin-ug-net/using.html
+        mount -o noacl -f //192.168.11.28/homes/Public $SHARE
+    }
+    alias umount_share='umount $SHARE'
+    #if ! [ -d $SHARE/WorkAndHints ]; then
+    #    mount_share
+    #fi
+    # cd $SHARE
+    if [ `uname` = "CYGWIN_NT-6.1" ]; then
+        # CSCOPE_DB=/home/Alfred/Scale/cscope.out
+        CSCOPE_DB=~/Scale/cscope.out
+    fi
+
+    # to show focus distances of *39xx.JPG files in a directory, cd there and type
+    # exiftool -focusdistancelower -focusdistanceupper *39??.JPG
+    exiftool() {
+    #/cygdrive/y/alfred_photo/ExifTool985/exiftool -fast $*
+    $SHARE/Alfred_Photo/ExifTool985/exiftool -fast $*
+    }
+
+    # no need, XE installation set Windows ORACLE_HOME and Cygwin inherit that
+    #export ORACLE_HOME=c:/oraclexe/app/oracle/product/11.2.0/server
+    # 192.168.11.1 is T400S as of Oct 2017
+    alias xe='rlwrap sqlplus hr/hrpw@192.168.11.1/XE'
+    alias xe='rlwrap sqlplus hr/hrpw'
+
+    # for openAM implementation in Win 10
+    #export JDK_HOME='/cygdrive/c/Program Files/java/jdk1.8.0_152'
+    #export PATH=$PATH:$JDK_HOME/bin
+    #export JAVA_HOME='/cygdrive/c/Program Files/java/jre1.8.0_181'
+    # defining JAVA_HOME as a JDK home allows Maven to find the compiler and do builds
+    export JAVA_HOME='/cygdrive/c/Program Files/java/jdk1.8.0_181'
+    export PATH=$PATH:$JAVA_HOME/bin
+    #export CATALINA_OPTS="$CATALINA_OPTS -Xmx2g -XX:MaxMetaspaceSize=256m"
+    export CATALINA_OPTS="$CATALINA_OPTS -Xmx1536m -XX:MaxMetaspaceSize=256m"
+    export CYGHOME='/cygdrive/c/cygwin64/home/Alfred'
+    export MAVEN_HOME="$CYGHOME/apache-maven-3.6.3"
+    export PATH=$PATH:$MAVEN_HOME/bin
+    export GRADLE_HOME="$CYGHOME/gradle-6.4"
+    export PATH=$PATH:$GRADLE_HOME/bin
+
+    # to check what files are installed for a cygwin package, e.g. httpd, php, python, ..etc
+    alias checkpkg='cygcheck -l'
+    #alias start_apache='/home/alfred/apache/bin/apachectl start'
+    #alias stop_apache='/home/alfred/apache/bin/apachectl stop'
+    # for Cygwin's apache installation (httpd)
+    #/etc/httpd/logs -> ../../var/log/httpd
+    #/etc/httpd/modules -> ../../usr/lib/httpd/modules
+    #/etc/httpd/run -> ../../var/run/httpd
+    #/etc/httpd/conf
+    #/etc/httpd/conf.modules.d
+    #/etc/httpd/conf.d
+    #
+    # Jul2018, enabled mod_proxy requires cygserver to run, from a Win10 admin privileged account
+    # else fail to startup apache /var/log/httpd/* will show cannot create mutex error
+        #[alfred@DESKTOP-LSK9F88: /share_alfred]
+        #$ /usr/bin/cygserver-config
+        #Overwrite existing /etc/cygserver.conf file? (yes/no) yes
+        #Generating /etc/cygserver.conf file
+        #Warning: The following function requires administrator privileges!
+        #
+        #Do you want to install cygserver as service?
+        #(Say "no" if it's already installed as service) (yes/no) yes
+        #The service has been installed under LocalSystem account.
+        #To start it, call `net start cygserver' or `cygrunsrv -S cygserver'.
+        #
+        #Further configuration options are available by editing the configuration
+        #file /etc/cygserver.conf.  Please read the inline information in that
+        #file carefully. The best option for the start is to just leave it alone.
+        #Basic Cygserver configuration finished. Have fun!
+    # change c:\Windows\System32\drivers\etc\hosts to add new hostnames, Win10 Chrome can use
+    # http://dummy-host.example.com   for Cygwin started apache
+    # http://tomcat.example.com:8080  for Ubuntu started tomcat
+        ## added : alfred Jul 2018
+        #127.0.0.1 dummy-host.example.com
+        #127.0.0.1 dummy-host2.example.com
+        #127.0.0.1 dummy-host3.example.com
+        ## ubuntu 16 VMWare of Zotac
+        #192.168.203.129 tomcat.example.com
+        #127.0.0.1 tomcat2.example.com
+        #127.0.0.1 tomcat3.example.com
+        #127.0.0.1 tomcat4.example.com
+    #change httpd.conf to include /etc/httpd/conf/extra/httpd-vhosts.conf
+    # 1) that file also changed to add proxying of tomcat in Ubuntu 16 VM
+    # 2) use 'apachctl -S' to show the effective VirtualHost config
+    #<VirtualHost *:80>
+    #    ServerAdmin webmaster@tomcat2.example.com
+    #    DocumentRoot "/etc/httpd/docs/dummy-host.example.com"
+    #    ServerName tomcat2.example.com
+    #    ServerAlias tomcat3.example.com
+    #    ServerAlias tomcat4.example.com
+    #    ErrorLog "/var/log/httpd/tomcat2.example.com-error_log"
+    #    CustomLog "/var/log/httpd/tomcat2.example.com-access_log" common
+    #    ProxyRequests off
+    #    ProxyPreserveHost off
+    #    ProxyPass / http://tomcat.example.com:8080/
+    #    ProxyPassReverse / http://tomcat.example.com:8080/
+    #</VirtualHost>
+
+    export PATH=$PATH:/usr/sbin
+    alias start_apache='apachectl start'
+    alias stop_apache='apachectl stop'
+    alias restart_apache='apachectl restart'
+
+    alias start_tomcat='/home/alfred/tomcat/bin/startup.sh'
+    alias stop_tomcat='/home/alfred/tomcat/bin/shutdown.sh'
+    # type start-domain  stop-domain to start/stop server
+    # alias start_glassfish='echo "pls type start-domain" ; cd /home/alfred/glassfish5/bin ; ./asadmin'
+    alias start_glassfish='cd /home/alfred/glassfish5/bin ; ./asadmin start-domain'
+    alias stop_glassfish='cd /home/alfred/glassfish5/bin ; ./asadmin stop-domain'
+    alias start_tomee='/home/alfred/tomee/bin/startup.sh'
+    alias stop_tomee='/home/alfred/tomee/bin/shutdown.sh'
+    alias start_derby='/home/Alfred/glassfish5/javadb/bin/startNetworkServer'
+    alias stop_derby='/home/Alfred/glassfish5/javadb/bin/stopNetworkServer'
+    alias edit_hosts='vi /cygdrive/c/Windows/system32/drivers/etc/hosts'
+    # see start/stop/pause/resume the docker host vm
+
+    # on X1Carbon, must start_docker  before start_docker_jupyter
+    # alias start_docker='"/cygdrive/c/Program Files/Oracle/VirtualBox/VBoxManage" startvm "default" --type headless'
+    alias start_docker='"/cygdrive/c/Program Files/Oracle/VirtualBox/VBoxManage" startvm "default"'
+    alias stop_docker='"/cygdrive/c/Program Files/Oracle/VirtualBox/VBoxManage" controlvm "default" poweroff'
+    alias resume_docker='"/cygdrive/c/Program Files/Oracle/VirtualBox/VBoxManage" controlvm "default" resume'
+    alias pause_docker='"/cygdrive/c/Program Files/Oracle/VirtualBox/VBoxManage" controlvm "default" pause'
+    # see /cygdrive/c/Users/Alfred/start_docker_jupyter for more detail
+    # 1) must run 'start_docker' to start the VirtualBox "default" VM, before running below jupyter image/container
+    # 2) run 'docker image ls' to see what images are available for docker to run, 'keras/alfred' is 1 of them
+    # The 'default' VM is a Linux that runs docker, you can interact with the started VM Linux session, e.g. run 'docker image ls'
+    alias start_docker_jupyter='docker run -i -t --network=host -v /c/Users:/c/Users keras/alfred /bin/bash -c "/app/start_docker_jupyter"'
+    # after that, in browser, do http://192.168.99.100:8888/tree?  to start the Tutorials/Lessons practise
+    # https://courses.packtpub.com/enrollments for Lesson videos
+
+    # Migrating docker image to other machines:
+    # Can also export docker images to the VM shared directory c:/Users by running below command in that Linux session :
+    # docker save -O /c/Users/Alfred/keras.tar keras/alfred
+# Update: keras.alfred was saved on NAS Downloads/Docker, and imported back to X1Carbon after upgrade of ssd,
+# which caused Docker Toolbox to fail.
+# Reinstalled docker toolbox, run Docker QuickStart terminal to create docker vm 'default', then import keras.tar
+    # after copying keras/jar to CoinMachine, which runs Docker Desktop for Windows:
+    # 1) You cannot log into the Docker VM of Windows Hyper V easily (unlike the docker Toolbox case in X1Carbon)
+    # 2) Docker Desktop does not have a Desktop App, it is minimised into the icons Tray of the Wiundows Task Bar
+    # 3) rigkt click on that Docker Destop icon there, start Settings. Then a window pops-up and shows that Resources | File Sharing
+    # already have everything under C:\ shared to the Docker
+    # 4) Use Windows DOS Prompt like a Linux command session. 'docker image ls' will work
+    # 5) docker load -i c:\Users\alfred\Desktop\keras.tar  import the image to Docker in Coin Machine.
+    # 6) copy c:\Users\Alfred\The-Deep-Learning-with-Keras-Workshop-master\* from X1Carbon machine
+    # 7) from DOS session, need modify startup a bit because of DOS, and because user name is alfred in CoinMachine but Alfred in X1Carbon
+    # 'docker run -i -t --network=host -v c:/Users/alfred:/c/Users/Alfred keras/alfred /bin/bash -c "/app/start_docker_jupyter"'
+    # 8) But there is no easy way to find out your comnatiner's ip-address, do not know how to connect to the jupyter
+    # server even if it looks started
+
+    # for awscli package, in Cygwin64
+    export PATH=$PATH:/home/alfred/.local/bin
+
+    # HOSTS file override on native Win 10
+    #[alfred@DESKTOP-LHINNED: /etc]
+    #$ ll hosts
+    #lrwxrwxrwx 1 alfred None 46 Jul  9 19:40 hosts -> /cygdrive/c/Windows/System32/drivers/etc/hosts
+
+    # call dos python because cygwin python cannot do GUI (may need much more installation like X)
+    # -i is needed or else will not show prompt
+    # but running batch showfile.py with exit() will cause exception
+    #alias dos_python='rlwrap /cydrive/c/Python27/ArcGISx6410.6/python.exe -i -u'
+    alias dos_python='rlwrap /cydrive/c/Python27/ArcGISx6410.6/python.exe'
+    alias gisproject='cd /cygdrive/c/Users/alfred/Desktop/GISLab/MyProject'
+    alias airproject='cd /cygdrive/c/Users/alfred/Desktop/Courses/AirPollutionMeteorology/Project'
+    alias wekadata='cd /cygdrive/c/Users/Alfred/Documents/Weka_data'
+
+    # for running Windows native programs (e.g. node, windows python, java...)
+    # that do not understand what cygwin's /home/alfred or ~ means
+    #  hn means 'home native'
+    alias hn='echo c:/cygwin64/home/alfred'
+
+    export SQUEAK_PATH=/cygdrive/C/Users/Alfred/Downloads/Squeak5.2-18229-64bit-201810190412-Windows
+    alias sq='cd $SQUEAK_PATH'
+
+
+elif uname -a | grep -i -q "Synology" ; then  # synology diskstation
+
+    PLATFORM='SYNOLOGY'
+    SHARE=/var/services/homes/Public
+
+    # mounting and sync-ing
+    # === router mounted USB share ====
+    # assume mounted as 'Remote Folder' from Synology 'File Station | Tools' GUI as cifs shares to the photo/* mount point
+    alias rsync_netgear6300='rsync -av --exclude Movies $SHARE /volume1/photo/USB_Storage 2>&1 | tee rsync.log.6300'
+    # below rsync can never finish, should avoid rsync to netgear3500 attached drive
+    alias rsync_netgear3500='rsync -av --exclude Movies $SHARE /volume1/photo/netgear3500 2>&1 | tee rsync.log.3500'
+
+    # === mycloud ====
+    # How the mycloud was auto-mounted and how the nightly rsync was setup ?
+    # see Alfred_Photo/readme.diskstation.mount_SyncMyCloud and WorkAndHints/Synology/Synology216j_3_Rsync.odt
+
+    # assume mounted by command line as nfs share to /mnt/share mount point by root, i.e.·
+    # alias mount_mycloud='sudo mount -t nfs 192.168.11.50:/nfs/Public /mnt/share'
+    # alias rsync_mycloud='rsync -av --exclude Movies $SHARE /mnt/share | tee rsync.log.mycloud'
+    # assume mounted as 'Remote Folder' from Synology 'File Station | Tools' GUI as nfs shares to the photo/mycloud mount point
+    # alias rsync_mycloud='rsync -av --exclude Movies $SHARE /volume1/photo/mycloud | tee rsync.log.mycloud'
+    MOUNTPOINT_MYCLOUD=/volume1/photo/mycloud
+    alias rsync_mycloud='rsync -rlptDv --exclude Movies $SHARE $MOUNTPOINT_MYCLOUD | tee rsync.log.mycloud'
+    alias share_mycloud='cd $MOUNTPOINT_MYCLOUD/Public'
+    alias photo_mycloud='cd $MOUNTPOINT_MYCLOUD/Public/Alfred_Photo'
+
+    # for installing new tools, see also WorkAndHints/Synology/readme.gcc.mawk.txt
+    # sudo -i
+    # ipkg list | grep someshit
+    # ipkg install someshit
+    # add path for ipkg installed stuff
+    # UPDATE 2022 June, below optware still used in DS216J but I used /opt/bin directly in DS720
+    # export PATH=/volume1/@optware/bin:$PATH
+    export PATH=/opt/bin:/opt/sbin:$PATH
+
+    # copy from auto-mounted USB mounted SD/CF Card
+    # cp -rp $USBSHARE1/DCIM/101EOS5D $SHARE/Alfred_Photo
+    # However, although FAT32 is supported by DiskStation, exFAT need additional installation
+    # See WorkAndHints/Synology/readme.exFAT.txt
+    USBSHARE1=/volumeUSB1/usbshare
+    USBSHARE2=/volumeUSB2/usbshare
+    usbshare_() {
+        if mount | grep -q $1; then
+            cd $1
+        else # should be auto mounted according to what is attached to USB port
+            echo USB drive not mounted
+        fi
+    }
+    usbshare1() {
+        usbshare_ $USBSHARE1
+    }
+    usbshare2() {
+        usbshare_ $USBSHARE2
+    }
+
+    # see NAS /Volumes/Homes/Public/Installations/Synology/Synology_python_install_usage.txt
+    # The following needs more refinement and test:
+    # - can I edit PATH from /etc/profile instead of here ? Not sure if that gains anything during upgrade to DSM7.0
+    # - Can use 'pip3' instead of 'python3 -m pip ...' after PATH is setup
+    export PATH=$PATH:/var/packages/py3k/target/usr/local/bin
+    # Installed jupyter
+    # - sudo netstat -tulpn | grep LISTEN | grep 8888 shows port is free, Unless SageMath Docker is run, which also use 8888
+    # - start jupyter as a service ? No supervisord/ctl, DSM 7 has systemd, DSM 5 uses upstart, see below URL
+    #  https://gist.github.com/SanCoder-Q/f3755435e6e8bd46ba95bf0ec54ae1a4
+    #  or use Synology Control Panel's Scheduler as an alternative?
+    # - Can start the notebook and connect from MBA to http://192.168.11.28:8888 or http://ds720:8888/
+    # alias start_jupyter_DS720='cd /var/services/homes/Public/WorkAndHints/SageMathDSM; sudo jupyter notebook --ip 0.0.0.0 --port 8888 --allow-root'
+    # Can start in nohup mode after setting jupyter password
+    # .../WorkAndHints/SageMathBak, is used for backup of MBA ~/SageMath/*
+    # .../WorkAndHints/SageMath is used by DS720 SageMath Docker
+    alias start_jupyter_DS720='cd /var/services/homes/Public/WorkAndHints/SageMathDSM; nohup jupyter notebook --ip 0.0.0.0 --port 8888 &'
+
+    # tensorflow that does not require AVX support is installed into /var/services/homes/alfred/.local/bin
+    export PATH=$PATH:/var/services/homes/alfred/.local/bin
+elif uname -a | grep -i -q "Ubuntu\|osmc\|MyCloud\|Linux" ; then  # Ubuntu 32/64 bit or osmc or MyCloud or Centos
+
+    # - MyCloud platform is very restricted, no ipkg (in Synology) nor apt-get (in osmc), no way to install vim
+    # - Cannot ssh from cygwin to MyCloud, can only ssh from other platform, e.g. from Synology diskstation
+    # - MyCloud runs 'ash' from busybox instead of bash, need to create .profile to source this file instead of .bashrc
+    # - Some of the alias or functions define in this file may not work in 'ash', must invoke 'bash' explicitly in mycloud
+    # - Therefore very seldom need to get into that server, only used as backup for Synology as of 2017
+    # NOTE : As of Feb 2020, there is abolutely no way to ssh into My Cloud even though documentation suggest you can
+    # neither 'root' or 'admin' id will work. The only way to do admin to My Cloud is http://192.168.11.50
+
+    PLATFORM='LINUX'
+    if uname -a | grep -i -q "Microsoft" ; then
+        PLATFORM='LINUX-WSL'
+    elif uname -a | grep -i -q "MyCloud" ; then   # ssh does not work since before Feb 2020
+        PLATFORM='LINUX-MyCloud'
+    elif uname -a | grep -i -q "osmc" ; then
+        PLATFORM='LINUX-osmc'
+    elif uname -a | grep -i -q "Ubuntu" ; then
+        PLATFORM='LINUX-Ubuntu'
+    elif uname -a | grep -i -q "tegra" ; then
+        PLATFORM='LINUX-Jetson'
+    elif uname -a | grep -i -q "raspberry" ; then
+        PLATFORM='LINUX-pi'
+    fi
+
+    if [ $PLATFORM = 'LINUX-WSL' ]; then
+        SHARE=/mnt/y
+    else
+        SHARE=/mnt/share
+    fi
+
+    mount_share() {
+        echo Mounting $SHARE
+
+        # Windows Susbsystem for Linux  (WSL)
+        if [ $PLATFORM = 'LINUX-WSL' ]; then
+            # sudo mount -t drvfs '\\192.168.11.28\homes\Public' $SHARE
+            # change to 'Y:' will avoid a lot of problem where UNC style path
+            # '\\192...' are not supported by many programs
+            #sudo mount -t drvfs Y: $SHARE
+            # mount with uid for 'alfred', avoid 'git init' (or gradle build) chmod failure error
+            # alternatively can mount with no option but 'sudo bash' to operate under 'root'
+            sudo mount -t drvfs Y: $SHARE -o uid=1000,gid=1000,umask=022
+        # fallback to use 'mount -t cifs ..." after failure resolved by install of cifsutils
+        #elif [ $PLATFORM = 'LINUX-Ubuntu' ]; then
+        #    echo "Please mount NAS from Ubuntu Nautilus File Manager GUI. 'share' is mapped to /mnt/share as /run/user/1000/gvfs/..."
+        else
+            ##[ -z "$1" ] && echo 'Please type "mount_share password"' && return
+            pw=$1
+            [ -z "$pw" ] && echo 'Please enter LAN password' && read -s pw
+
+            # May2018 pi3 running raspbian and Ubuntu 16.04 mount
+            export ver2=""
+            if [ $PLATFORM = 'LINUX-pi' ]; then
+                export ver2=",vers=2.0"
+            fi
+            sudo mount -t cifs //192.168.11.28/homes/Public $SHARE -o username=alfred,uid=1000,gid=1000${ver2} -o password=$pw
+            pw=""
+            # UPDATE 2021 : cifs mount problem probably due to cifsutils not installed !
+            # Ubuntu 16.04.1 has problem mounting cifs, do 'ln -s' instead after connecting
+            # to Synology server from Ubuntu GUI
+            # ln -s /var/run/user/1000/gvfs/smb-share\:server\=192.168.11.28\,share\=homes/Public /mnt/share
+        fi
+    }
+    alias umount_share='sudo umount $SHARE'
+
+    if [ $PLATFORM = 'LINUX-MyCloud' ]; then
+        PUBLIC=/mnt/HD/HD_a2/Public/Public
+        alias public='cd $PUBLIC'
+    fi
+
+    # Windows Susbsystem for Linux  (WSL)
+    if [ $PLATFORM = 'LINUX-WSL' ]; then
+
+        CYGHOME=/mnt/c/cygwin64/home/Alfred
+        alias c:='cd /mnt/c'
+        WINHOME='/mnt/c/Users/alfred'
+        alias winhome="cd $WINHOME"
+        # ECLIPSE_WORKSPACE="$WINHOME/eclipse-workspace"
+        alias cyghome='cd $CYGHOME'
+        # Oct 2018: following works only in XCarbon, not Zotac. Zotac's tomat has been changed too much
+        # Oct 2018 update: works in Zotac if tomcat server.xml reverted back to original one
+        alias start_tomcat='$CYGHOME/apache-tomcat-7.0.82/bin/startup.sh'
+        alias stop_tomcat='$CYGHOME/apache-tomcat-7.0.82/bin/shutdown.sh'
+
+        alias start_sshd='sudo service ssh restart'
+        alias stop_sshd='sudo service ssh stop'
+
+        # hadoop stuff
+        HADOOP_HOME=/home/alfred/hadoop-2.8.5
+        PATH="$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
+
+        # call dos python because WSL python cannot do GUI
+        # -i is needed or else will not show prompt
+        # but running batch showfile.py with exit() will cause exception
+        #alias dos_python='rlwrap /mnt/c/Python27/ArcGISx6410.6/python.exe -i -u'
+        alias dos_python='rlwrap /mnt/c/Python27/ArcGISx6410.6/python.exe'
+        alias myproject='cd /mnt/c/Users/alfred/Desktop/GISLab/MyProject'
+        alias start_eclipse2020='/home/alfred/eclipse/jee-2020-03/eclipse/eclipse &'
+        alias start_eclipse2019='/home/alfred/eclipse/jee-2019-12/eclipse/eclipse &'
+        export GRADLE_HOME="/home/alfred/gradle-6.4"
+        export PATH=$PATH:$GRADLE_HOME/bin
+
+    fi
+
+    # for starting vnc server in osmc
+    if [ $PLATFORM = 'LINUX-osmc' ]; then
+        alias startvnc=startvnc_
+        startvnc_() {
+            sudo modprobe uinput
+            sudo chmod 666 /dev/uinput
+            ~/dispmanx_vnc-master/dispman_vncserver
+        }
+    fi
+
+    if [ $PLATFORM = 'LINUX-Ubuntu' ]; then
+        ORACLE_HOME="/usr/lib/oracle/12.2/client64"
+        PATH="$PATH:$ORACLE_HOME/bin"
+        OCI_LIB="$ORACLE_HOME/lib"
+        LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$OCI_LIB"
+        TNS_ADMIN="$ORACLE_HOME/network/admin"
+
+        export JAVA_HOME=/home/alfred/jdk1.8.0_152
+        PATH="$PATH:$JAVA_HOME/bin"
+
+        #export CATALINA_OPTS="$CATALINA_OPTS -Xmx2g -XX:MaxMetaspaceSize=256m"
+        export CATALINA_OPTS="$CATALINA_OPTS -Xmx1536m -XX:MaxMetaspaceSize=256m"
+
+        alias start_apache='/home/alfred/apache/bin/apachectl start'
+        alias stop_apache='/home/alfred/apache/bin/apachectl stop'
+        alias webAgent_log='tail /home/alfred/apache/logs/error_log'
+        alias start_tomcat='/home/alfred/tomcat/bin/startup.sh'
+        alias stop_tomcat='/home/alfred/tomcat/bin/shutdown.sh'
+
+        # 192.168.11.1 is T400S as of Oct 2017
+        alias xe='rlwrap sqlplus hr/hrpw@192.168.11.1/XE'
+    fi
+
+elif uname -a | grep -i -q "Darwin" ; then  # JoannaMacMini or MBA M1
+
+    PLATFORM='OSX'
+    #SHARE=/Volumes/Public
+    ## Winfred MacBookAir mounting from command line the Synology share ..../hoems/Public
+    ## end up with /Volumes/homes instead of /Volumes/Public
+    #SHARE_ALTERNATIVE_LOCATION=/Volumes/homes
+    ## Winfred MacBookAir auto mounting from System Preference | Users Groups | Login Items
+    ## end up with /Volumes/homes/Public instead of /Volumes/Public
+    #SHARE_ALTERNATIVE1_LOCATION=/Volumes/homes/Public
+    #
+    ## might have been mounted previously, either SHARE or SHARE_ALTERNATIVE
+    ## before this shell is started, therefore get correct SHARE here
+    #updateShareLocation
+
+    # Mount is to /Volumes/Homes, but SHARE is /Volumes/Homes/Public
+    SHARE=/Volumes/Homes/Public
+
+    # Mount to /mnt/share*
+    # below will ask for password, but mounted volume can be used only by root, add options?
+    # alias mount_share_smb='sudo mount_smbfs //alfred@192.168.11.28/homes/Public /mnt/share'
+    # Mount MyCloud to /mnt/share*, tested to work 2017Jul
+    # alias mount_share_mycloud='sudo mount -t nfs -o resvport,rw 192.168.11.50:/nfs/Public /mnt/share'
+
+    # Mount to /Volumes/Public
+    mount_share() {
+        #osascript -e 'mount volume "smb://guest:null@192.168.11.1/USB_Storage"'
+
+        ## Feb 2020 Update
+        ## expect password to be given on $1 only if there was no keychain stored for smb mount of the share. which does
+        ## not happen unless you re-install a new machine, else 'Go | Connect To Server' would have created the keychain
+        ## However, there seems to be a bug where keychain for osascript invoked mount failed to be saved
+        #[ -z "$1" ] && echo 'Please type "mount_share password"' && return
+        pw=$1
+        [ -z "$pw" ] && echo 'Please enter LAN password' && read -s pw
+
+        # Feb 2020 Update
+        # Should not change to afp: unless you also change the GUI based mount 'Go | Connect To Server'
+        # and recreate the user login items that mount shared drive, to use same protocol. 
+        # Otherwise /Volumes/Homes and Volumes/Homes-1 will be created, very confusing
+        # Also, should mount .../Homes and not .../Homes/Public or else Eclipse usage of projects and
+        # workspace from NAS would always create /Volumes/homes-1 which prevent it from accessing the files/projects
+        # after reboot/relogin (requiring re-doing the Open File procedure from Eclispe to re-establish /Volumes/homes-1
+        # # try use afp to see if have better stability and performance on mounted shared drive
+        # # cmd='mount volume "afp://alfred:'$1'@192.168.11.28/homes/Public"'
+
+        # below will pop-up OSX's password entry dialog
+        # cmd='mount volume "smb://alfred:@192.168.11.28/Homes"'
+
+        cmd='mount volume "smb://alfred:'$pw'@192.168.11.28/Homes"'
+        osascript -e "$cmd"
+
+        ## Feb 2020 Update, can get rid of ALTERNATIVE shit and updateShareLocation later, when proved that
+        ## they are not needed, once the mounting afp vs smb and .../Homes vs .../Homes/Public confusions are gone
+        ## update to SHARE_ALTERNATIVE_LOCATION or SHARE_ALTERNATIVE1_LOCATION
+        #echo Mounting $SHARE or $SHARE_ALTERNATIVE_LOCATION
+        #updateShareLocation
+        echo Mounting $SHARE
+        echo $SHARE
+    }
+
+    # alias umount_share='umount $SHARE'
+    alias umount_share='umount /Volumes/Homes'
+
+
+
+    DS216_SHARE=/Volumes/DS216_Public
+    mount_ds216_share() {
+        pw=$1
+        [ -z "$pw" ] && echo 'Please enter LAN password for DS216' && read -s pw
+        cmd='mount volume "smb://alfred:'$pw'@192.168.11.29/DS216_Public"'
+        osascript -e "$cmd"
+        echo Mounting $DS216_SHARE
+        echo $DS216_SHARE
+    }
+
+
+
+    # Setting PATH for Python 3.8
+    # The original version is saved in .bash_profile.pysave
+    PATH="/Library/Frameworks/Python.framework/Versions/3.8/bin:${PATH}"
+    PATH="/Users/alfred/apache-maven-4.0.0-alpha-3/bin:${PATH}"
+
+    # exiftool -ver gives version 13.* because installed from exiftool download, into /usr/local/bin/exiftool and /usr/local/bin/lib/*
+    #PATH="/Users/alfred/Photos/ExifTool985:/Users/alfred/Photos:${PATH}"
+    #PATH="/Applications/digiKam.org/digikam.app/Contents/bin/Image-ExifTool-12.88:/Users/alfred/Photos:${PATH}"
+    # scripts for Photos, which requires exiftool
+    PATH="/Users/alfred/Photos:${PATH}"
+    export PATH
+
+    # for MacbookAir M1
+    export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.0.2.jdk/Contents/Home
+    # below used by /Applications/SQLDeveloper.app/Contents/MacOS/sqldeveloper.sh
+    export APP_JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.0.2.jdk/Contents/Home
+
+    alias openCurDirInFinder='open . .'
+    alias openHomeDirInFinder='open ~ .'
+    alias wifi_speed='/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport -I'
+
+    alias start_jupyter_sagemath='cd ~/SageMath; nohup jupyter notebook &'
+    alias start_jupyter_R='cd ~/R; nohup jupyter notebook &'
+    alias start_jupyter_wolfram='cd ~/Mathematica; nohup jupyter notebook &'
+
+    brewalias() {
+        alias balias='type brewalias'
+        alias brewInstall='brew install'
+        alias brewInstalled='brew list'
+        alias brewInstalledTree='brew deps --tree --installed'
+        alias brewInstalledLeaves='brew leaves'
+        alias brewSearchFormula='brew search --formula'
+        alias brewSearchCask='brew search --cask'
+        alias brewFormulaURL='echo "https://formulae.brew.sh/formula/"'
+        alias brewDir='echo "/opt/homebrew/bin/"'
+
+        alias brewSearch='brew_search'
+    }
+    brewalias
+    function brew_search() { brewSearchCask $1; brewSearchFormula $1; }
+
+    # mirror android screen on Mac/PC/Linux
+    alias android_screen='scrcpy'
+
+elif uname -a | grep -i -q "mingw" ; then  # Git-bash, Mingw
+    PLATFORM='MINGW'
+    WINHOME='/c/Users/alfred'
+    alias winhome="cd $WINHOME"
+    alias c:='cd /c'
+    alias e:='cd /e'
+    alias d:='cd /d'
+    alias y:='cd /y'
+    alias z:='cd /z'
+    SHARE=/y
+
+    alias mount_share="echo share drive is $SHARE, please check or use Windows to connect to it"
+
+    alias cf='winpty cf'
+    # no need to alias 'node' here, not sure who had set alias node='winpty node.exe' at this point
+    #alias node='winpty node'
+    alias cyghome='cd /c/cygwin64/home/alfred'
+else # unknown platform
+    PLATFORM='UNKNOWN'
+fi
+
+echo "PLATFORM=$PLATFORM"
+echo "Hint : type 'mount_share' to mount shared drive, type 'share' to go to shared drive"
+
+echo Shared drive IS `isShareMounted || echo 'NOT '` mounted on $SHARE
+
+share() {
+    # updateShareLocation
+    cd $SHARE
+}
+
+
+# Use single quote to prevent early resolving $SHARE, that can change over lifetime of session
+alias work="cd $SHARE/WorkAndHints"
+alias work='cd $SHARE/WorkAndHints'
+alias photo='cd $SHARE/Alfred_Photo'
+alias workspace='cd $ECLIPSE_WORKSPACE'
+alias workspaceNAS='cd $SHARE/X1Carbon-eclipse-workspace-BAK'
+alias ws=workspace
+alias wn=workspaceNAS
+alias re=replay_expand
+
+#mypath=".:/usr/local/bin:/home/Alfred/scripts"
+mypath=".:/usr/local/bin:$SHARE/WorkAndHints/scripts:$SHARE/Alfred_Photo"
+case ":$PATH:" in
+*":$mypath:"*): ;;
+*) PATH="$PATH:$mypath" ;;
+esac
+
+export  LS_COLORS='ow=01;36;40'
+#if [ $PLATFORM = 'OSX' ]; then
+#    alias ls='ls -G'
+#else
+#    alias ls='ls --color'
+#fi
+alias ll='ls -lrt'
+alias lt='ls -lrt'
+alias grep='grep --color=auto'
+
+# the below 2 alias has same effect
+# alias oralinux65='ssh -l alfred 192.168.11.16'  # magazinex2, VirtualBox VM from Zotac
+alias oralinux65='ssh alfred@192.168.11.16'  # magazinex2, VirtualBox VM from Zotac
+alias oralinux46='ssh -l root 192.168.11.34'
+alias ubuntu8='ssh -l user 192.168.11.17'
+#alias oraclexe='ssh -l user 192.168.11.17'
+# native 64bit xe in Zotac
+# alias xe='sqlplus hr/hrpw@192.168.11.21:1521/XE'
+alias mycloud='ssh -l sshd 192.168.11.50' # use network password
+# below machine can be win10 if SSD is swapped but USB Wifi stays same
+alias ubuntuCoinMachine='ssh -l alfred 192.168.11.174'
+
+alias awsorcl='rlwrap sqlplus alfred/Sybct12xx@alfred-aws-orcl.cryf1bwpr8vi.ap-southeast-1.rds.amazonaws.com:1521/ORCL'
+
+# NetGear 3500Lv2
+alias tomato='ssh -l root 192.168.11.240'
+
+alias ubuntu='ssh -l user 192.168.11.19'
+alias AlfredMacMini='ssh -l lamalfred 192.168.11.15'
+alias JoannaMacMini='ssh -l joanna 192.168.11.187'
+#alias solaris8='rsh -l root 192.168.117.132'
+alias solaris8='rsh -l root 192.168.11.37'
+alias solaris10='ssh -l root 192.168.11.10'
+#alias pcbsd='ssh -l pcbsd 192.168.11.11'
+alias pcbsd='ssh -l alfred 192.168.11.11' # pw maga, login and sudo if need root
+#alias pcbsd='ssh -l root 192.168.11.11'  # pw pcbsd, but cannot
+alias ftp_sol10='ftp 192.168.11.10'
+
+alias diskstation216='ssh -l alfred 192.168.11.29'
+alias diskstation720='ssh -l alfred 192.168.11.28'
+alias diskstation=diskstation720
+alias ds=diskstation720
+alias ds720=diskstation720
+alias ds216=diskstation216
+
+# raspberry 2 (11.26) or 3 (11.30)
+# root/openelec for OpenElec
+# pi/raspberry for Moode
+# osmc/osmc for OSMC
+# volumio@volumio for volumio
+alias raspberry2='ssh -l root 192.168.11.26'
+#alias raspberry3='ssh -l pi 192.168.11.30'
+# pi 5 through WiFi
+# 5Wire does not always work after switching NetGear3500 to NetGear6500 as AccessPoint
+alias raspberry5Wire='ssh -l alfred 192.168.11.80'
+alias raspberry5WiFi='ssh -l alfred 192.168.11.81'
+alias pi5a=raspberry5Wire
+alias pi5b=raspberry5WiFi
+alias scp2pi5='_scp2pi5() {scp $1 alfred@192.168.11.81:/home/alfred}; _scp2pi5'
+# osmc/osmc
+alias osmc='ssh -l osmc 192.168.11.30'
+# volumio/volumio
+alias volumio='ssh -l volumio 192.168.11.26'
+
+# engine of Mathematica
+alias Mathematica='echo start Mathematica by clicking notebook, or else do Wolfram Engine here; cd /Volumes/Homes/Public/WorkAndHints/Mathematica'
+alias wolfram='wolframscript'
+# $UserBaseDirectory/Kernel is where init.m should reside, and wolfram always read init.m (like _bashrc ?), but dopes not seem to work
+#export UserBaseDirectory=/home/alfred/Mathematica
+#export UserBaseDirectory=/Volumes/Homes/Public/WorkAndHints/Mathematica
+# open source js notebook for wolfram language
+alias wolfram_js_notebook='wljs'
+alias wolfram_jupyter=start_jupyter_wolfram
+
+# Matlab, no local installations as of Apr 2025, may add $USD perpectual license in future?
+alias matlab='echo Matlab on Cloud https://matlabacademy.mathworks.com/en/details/matlab-onramp/gettingstarted'
+
+# jasp for statistics
+alias jasp_statistics='echo start from M1MBA LaunchPad'
+
+
+# in Zotac Win10 64bit 256G SSD Dec 2017, Ubuntu16 VM's user alfred/joanna/anson all have
+# .ssh/authorized_keys imported alfred's public key. Therefore can use alfred's private key to signon to them.
+# That VM has bug, that does not allow password signon from ssh (proven with 'ssh -vvv -l alfred@192.168.203.129)
+# Does not have same problem in the Ubuntu12 or OracleLinux46 VM
+# Address 192.168.203.129 for the Unbuntu16 VM is fixed by setting it into VMWare's DHCP config
+alias alfred_ubuntu16='ssh -i id_rsa.private.ubuntu16.alfred.joanna.anson alfred@192.168.203.129'
+alias joanna_ubuntu16='ssh -i id_rsa.private.ubuntu16.alfred.joanna.anson joanna@192.168.203.129'
+alias anson_ubuntu16='ssh -i id_rsa.private.ubuntu16.alfred.joanna.anson anson@192.168.203.129'
+
+# aws cli, 'aws --profile alfred_user --region ap-southeast-1' to test diff alfred_user vs alfred_admin
+aws='aws --profile alfred_admin --region ap-southeast-1'
+#aws polly synthesize-speech --output-format mp3 --voice-id Joanna --text 'results are not good' hello.mp3
+
+# Nov 2017 same key can be used to access both EC2 machines inside AWS
+awslogin () {
+read -p "Please enter region, sg or au [sg]: " region
+region=${region:-sg}
+read -p "Please enter public ip address for SG/AU instance, like xxx.xxx.xxx.xxx [13.250.100.92]: " ipaddr
+ipaddr=${ipaddr:-13.250.100.92}
+ipaddr=${ipaddr//./-}
+read -p "Please enter user to logon to, ec2-user or joanna [ec2-user]: " aws_user
+aws_user=${aws_user:-ec2-user}
+read -p "Please enter directory where your key file is stored [.]: " keyfiledir
+keyfiledir=${keyfiledir:-.}
+#echo $ipaddr $aws_user $keyfiledir
+
+if [ $region = 'sg' ]; then
+    key=alfred_private_EC2_1.pem
+    regionName=ap-southeast-1
+elif [ $region = 'au' ]; then
+    key=alfred_private_machine1_au.pem
+    regionName=ap-southeast-2
+else
+    echo "Invalid region $region"
+    return
+fi
+
+if [ $aws_user = 'ec2-user' ]; then
+    keyfile=$keyfiledir/$key
+elif [ $aws_user = 'joanna' ]; then
+    keyfile=$keyfiledir/id_rsa.joanna.aws.private
+else
+    echo "Invalid user $aws_user"
+    return
+fi
+
+if [ -f $keyfile ]; then
+    ssh -i ${keyfile} ${aws_user}@ec2-${ipaddr}.${regionName}.compute.amazonaws.com
+else
+    echo "$keyfile does not exists"
+fi
+}
+
+awslogin_fast () {
+region=${region:-sg}
+ipaddr=${1}
+ipaddr=${ipaddr//./-}
+aws_user=${aws_user:-ec2-user}
+keyfiledir=${keyfiledir:-.}
+#echo $ipaddr $aws_user $keyfiledir
+key=alfred_private_EC2_1.pem
+regionName=ap-southeast-1
+keyfile=$keyfiledir/$key
+
+if [ -f $keyfile ]; then
+    ssh -i ${keyfile} ${aws_user}@ec2-${ipaddr}.${regionName}.compute.amazonaws.com
+else
+    echo "$keyfile does not exists"
+fi
+}
+
+# usage 'awsftp 13.229.222.106'
+awsftp() {
+    sftp -i ./alfred_private_EC2_1.pem ec2-user@${1}
+}
+
+# parm 1 should be ip address of the gcp/azure machine
+cloudlogin() {
+ipaddr=$1
+[ -z "${ipaddr}" ] && read -p "Please enter public ip address for machine, like xxx.xxx.xxx.xxx [13.250.100.92]: " ipaddr
+
+if [ $cloud = 'gcp' ]; then
+    user=lamalfred06
+elif [ $cloud = 'azure' ]; then
+    user=alfred
+else
+    echo "Invalid cloud $cloud"
+    return
+fi
+
+read -p "Please enter directory where your key file is stored [.]: " keyfiledir
+keyfiledir=${keyfiledir:-.}
+
+keyfile=$keyfiledir/alfred-gcp-sshkey
+if [ -f $keyfile ]; then
+    ssh -i ${keyfile} ${user}@${ipaddr}
+else
+    echo "$keyfile does not exists"
+fi
+}
+
+gcplogin() {
+    cloud=gcp
+    cloudlogin $1
+}
+azurelogin() {
+    cloud=azure
+    cloudlogin $1
+}
+
+# see wordAndHints/AWS/GoogleCloudPlatform/readme.cloudshell.txt
+alias cloudshell='gcloud alpha cloud-shell ssh'
+
+# Pivotal CloudFoundry, 'cf cannot be run from Cygwin
+# can only run from 'winpty ..' of Git-bash or Linux or Mac or native DOS
+# cf login [-a API_URL] [-u USERNAME] [-p PASSWORD] [-o ORG] [-s SPACE]
+pcflogin() {
+    [ $PLATFORM = 'CYGWIN' ] && echo Cannot run cf from CYGWIN && return
+    cf login -a https://api.run.pivotal.io -u lamalfred06@yahoo.com.hk
+}
+
+# allow myself to start xterm on localhost, therefore do ddd or gvim.
+# must set DISPLAY to my xWin first before starting ddd, gvim, xterm ..
+# export DISPLAY=192.168.11.21:0.0
+export DISPLAY=:0.0
+if [ $PLATFORM = 'LINUX-Jetson' ]; then
+    export DISPLAY=:1
+    export DISPLAY=:0   # default should be :0, whis is same as :0.0
+fi
+echo "DISPLAY is set to $DISPLAY"
+if [ $PLATFORM = 'LINUX-Ubuntu' ]; then
+    # map ScrollLock/Pause keys to Home/End
+    # For mapping keys in PC Win10, use SharpKey application
+    xkbcomp -I$HOME/.xkb ~/.xkb/symbols/mykbd $DISPLAY > /dev/null 2>&1
+    echo "keyboard is mapped using xkbcomp"
+    # required by ibus-setup, may be need 'export DISPLAY=:0'
+    # export DISPLAY=:1
+fi
+if [ $PLATFORM = 'CYGWIN' ] || [ $PLATFORM = 'MINGW' ]; then
+    ipaddress=`ipconfig | grep 192.168.11 | grep -v Gateway | sed 's/.* //'`
+else  # Linux Ubuntu/WSL or MacOSX
+    ipaddress=`ifconfig | grep 192.168.11 | sed -E 's/[^0-9]+(192.168.11.[0-9]+).*/\1/'`
+fi
+echo "ipaddress: $ipaddress"
+
+# in case the vpn client used by DS720 is not working, do not do external address
+if ! [ $PLATFORM = 'SYNOLOGY' ]; then
+    extip=`dig +short myip.opendns.com @resolver1.opendns.com 2> /dev/null`
+fi
+if [ -n "$extip" ]; then
+    echo "external ip: " $extip
+fi
+
+# xhost +=192.168.11.21
+
+# add xhost AlfredMacMini to allow him to connect my XWin, therefore start xterm for me to access AlfredMacMini
+# Also, AlfredMacMini must set DISPLAY to 192.168.19.21:0.0 (my local host) to ship the xterm request to me
+# Of course XWin must be started first using start_xwin alias below
+# xhost +=192.168.11.15
+
+# allows subsequent xclient application to share same display space
+alias start_x='startx & > ~/startx.log 2>&1'
+# allows subsequent xclient application to start standalone,
+# share same XWin server but independent display space
+alias start_xwin='startxwin & > ~/startxwin.log 2>&1'
+
+# used by sqlplus
+export EDITOR=vi
+alias orahome='cd $ORACLE_HOME'
+
+# git_branch is not used in zsh since I moved from bash to zsh
+# see setzsh() which sets up vcs info (i.e. git) and use it in the zsh prompt, by the precmd
+git_branch() {
+    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
+}
+
+if [ $SHELL = '/bin/zsh' ] || [ $SHELL = '/bin/bash' ] || [ $SHELL = '/usr/bin/bash' ]; then
+
+    # Can use below color names in shell script to create colored output using 'echo -e'
+    # echo -e ${YELLOW}yellow submarine${RED}red october
+
+    # use literal color name for the PS1 prompt, '\e' and '\[\033' is the same
+    # GREEN="\e[0;32m"
+    GREEN="\033[0;32m"
+    CYAN="\033[0;36m"
+    RED="\033[0;31m"
+    PURPLE="\033[0;35m"
+    BROWN="\033[0;33m"
+    LIGHT_GRAY="\033[0;37m"
+    LIGHT_BLUE="\033[1;34m"
+    LIGHT_GREEN="\033[1;32m"
+    LIGHT_CYAN="\033[1;36m"
+    LIGHT_RED="\033[1;31m"
+    LIGHT_PURPLE="\033[1;35m"
+    YELLOW="\033[1;33m"
+    WHITE="\033[1;37m"
+    RESTORE="\033[0m" #0m restores to the terminal's default colour, same as '\e[m\]'
+
+    # UPDATE 2020: retain git-bash default /etc/bash.bashrc prompt
+    if ! [ $PLATFORM = 'MINGW' ]; then
+        # 1) use single-quote instead of double-quote to force
+        # re-evaluation of pwd and git_branch on every change of directory
+        # 2) \e[m\] is same as \e[0m\]. \e is same as \[\033
+        # And missing out the ending \] also works but is like a hack
+        # PS1='\e[0;32m[\u@\h $PLATFORM $(pwd)]\e[1;31m$(git_branch)\e[m\n$ '
+        # PS1='\e[0;32m\][\u@\h $PLATFORM $(pwd)]\e[1;31m\]$(git_branch)\e[m\]\n$ '
+        # 3) try use literal color names defined above, with help of 'echo' to resolve conflict between
+        # immediate eval of color code and delayed-eval of $(pwd) and $(git_branch)
+
+        # below has problems, may comment out since Oct 2021
+        # Update : commented out since usage of zsh, whcih uses setzsh to setup the prompt
+        #PS1=$(echo ${GREEN}'[\u@\h $PLATFORM $(pwd) $(date "+%H:%M:%S")]'${LIGHT_RED}'$(git_branch)'${RESTORE}'\n$ ')
+        #  PS1='\[\e]0;\w\a\]\n\[\e[32m\]\u@\h $PLATFORM \[\e[33m\]\w\[\e[0m\]\n\$ '
+        #  PS1='\[\e]0;\w\a\]\n\[\e[32m\]\u@\h $PLATFORM \[\e[33m\]\w\[\e[0m\]\n\$ '
+        :
+    fi
+
+    # below is for what ??
+    # alias sp='PS1="$ "'
+    # alias lp='PS1="\e[0;32m[\h:\w]\e[m"'
+
+    # https://stackoverflow.com/questions/3058325/what-is-the-difference-between-ps1-and-prompt-command
+    # if ! [ $PLATFORM = 'OSX' ]; then
+    #     PROMPT_COMMAND='echo -ne "\e]0;$USER@${HOSTNAME}: $(pwd -P)\a"'
+    # fi
+fi
+
+set autoexpand
+set autolist
+export HISTFILESIZE=1000
+export HISTSIZE=500
+alias h='history 20'
+# force write
+alias hw='history -w'
+alias tmux='hw; tmux'
+
+#useful only in linux
+alias openfiles='lsof -u alfred'
+
+today () {
+    echo `date '+%Y%m%d'`
+}
+yesterday () {
+    if uname -a | grep -i -q "Darwin" ; then
+        echo `date -v -1d '+%Y%m%d'`
+    else
+        echo `date --date yesterday '+%Y%m%d'`
+    fi
+}
+
+# connect to Solaris Zotac VM's sybase
+# this connect format does not require use of freetds.conf
+alias sybase_sa='tsql -H 192.168.11.10 -p 5000 -U sa'  # null password as of May 2014
+
+lw() {
+    #ls -ld `which $1`
+    namei "`which $1`" | grep -E -v "^\s+d "
+}
+
+calc() {
+        # must enter formula with no spaces
+        # 3*5+6 instead of 3 * 5 + 6, or else quote them '3 * 5 + 6' or "3 * 5 + 6"
+        # * = multiply, / = divide, % = mod, add 'scale=x' for floting point results
+        # echo "scale=2;$@" | bc
+
+        #awk "BEGIN {print $@}"
+        awk "BEGIN {printf \"%.12g\n\", $@}"
+
+        # for sin
+        # awk "BEGIN { print sin(3.141)}" or
+        # calc 'sin(3.1416)'
+}
+
+# high precision math
+calc1() {
+    gawk -M -v PREC=333 "BEGIN {printf(\"%0.100f\n\",  $@ )}"
+ }
+
+chr() {
+  [ "$1" -lt 256 ] || return 1
+  printf "\\$(printf '%03o' "$1")" && echo ""
+  echo "in Java System.out.println((char) $1);"
+}
+
+ord() {
+  LC_CTYPE=C printf '%d' "'$1" && echo ""
+  echo "in Java System.out.println((byte) '$1');"
+}
+
+alias ascii2char=chr
+alias char2ascii=ord
+
+fn() {
+    [ -e "$1" ] && realpath $1
+}
+
+# to show focus distances of *39xx.JPG files in a directory, cd there and type
+# exiftool -focusdistancelower -focusdistanceupper *39??.JPG
+# exiftool() {
+# $SHARE/Alfred_Photo/ExifTool985/exiftool -fast $*
+# }
+
+enc_file() {
+    [ "$1" = "" ] && echo "Must input filename" && return 1
+    fileToEnc=${1%.decrypt}
+    if [ $PLATFORM = 'MINGW' ]; then
+        winpty openssl aes-256-cbc -a -salt -in $1 -out $fileToEnc.enc
+    else
+        openssl aes-256-cbc -a -salt -in $1 -out $fileToEnc.enc
+    fi
+    ls -lrt $fileToEnc*
+}
+
+dec_file() {
+    [ "$1" = "" ] && echo "Must input filename" && return 1
+    fileToDec=${1%.enc}
+    if [ $PLATFORM = 'MINGW' ]; then
+        test -f $fileToDec && winpty openssl aes-256-cbc -d -a -in $1 -out $fileToDec.decrypt
+        test -f $fileToDec || winpty openssl aes-256-cbc -d -a -in $1 -out $fileToDec
+    else
+        test -f $fileToDec && openssl aes-256-cbc -d -a -in $1 -out $fileToDec.decrypt
+        test -f $fileToDec || openssl aes-256-cbc -d -a -in $1 -out $fileToDec
+    fi
+    ls -lrt $fileToDec*
+}
+
+#alias myfunctions="typeset -f | grep '()' | grep -v '_zsh\|^_\|VCS_IN' | sed 's/\W*//' | sed 's/ .*//' | sort | uniq | pr -5 -l100 -w100 | sed '/^\s*$/d'"
+#alias myalias="alias | sed 's/=.*//' | sort | uniq | pr -5 -l100 -w100 | sed '/^\s*$/d'"
+alias myfunctions="typeset -f | grep '()' | grep -v '_zsh\|^_\|VCS_IN' | sed 's/\W*//; s/ .*//' | sort | uniq | pr -4 -t -w100"
+alias myalias="alias | sed 's/=.*//' | sort | uniq | pr -4 -t -w100"
+
+## alias that can take parameter
+alias glog20='_glog20() { git log --oneline $1 | head -20;}; _glog20'
+
+# if current shell is bash, allow subshell to use `today` function defined above
+[ -n "$BASH" ] && export -f today
+alias exported_functions='declare -x -f'
+
+# Process mycopy of mysh code, which could be sourced or linked
+# assume golden copy base filename is same as basename of mycopy
+update_mysh_code_ () {
+
+    # in case filename $1 contains special shell characters like '~' or shell variables like '$HOME'
+    # do a shell 'eval' to resolve those cases first
+    eval myCopy=$1
+    echo My copy of mysh source code to be updated is $myCopy
+
+    baseFile=`basename "$myCopy"`
+    goldenCopy=$SHARE/$baseFile
+
+    if ! [ -f $goldenCopy ]; then
+        echo "Cannot find golden copy $goldenCopy, stopping the update !"
+        return 1
+    fi
+
+    # if my sourced or linked file name has same name as golden copy, then no need to compare or update
+    if [ $myCopy = $goldenCopy ]; then
+        echo "My mysh code was sourced from or linked to golden copy, no need to update any file"
+        return 0
+    fi
+
+    echo "Comparing my code $myCopy with golden copy $goldenCopy"
+    outdiff=`diff $myCopy $goldenCopy`
+    if [ -n "$outdiff" ]; then
+
+        echo "file difference found ============"
+        echo "$outdiff"
+        echo "===================================="
+        echo "To check again, please answer No to below update question and run :"
+        echo "vimdiff $myCopy $goldenCopy"
+        echo ""
+        echo "Do you want to update your mysh source file? Y/N"
+        read YesNo
+        if [ "$YesNo" = "Y" -o "$YesNo" = "y" ]; then
+            echo "Backing up $myCopy to $myCopy.`today`"
+            rm -f $myCopy.`today`
+            mv $myCopy $myCopy.`today`
+            echo "Copying golden copy from $goldenCopy"
+            cp $goldenCopy $myCopy
+            chmod 544 $myCopy
+            echo "Running mysh to refresh to latest code"
+            mysh
+        else
+            echo "Update stopped, run update_mysh anytime again"
+        fi
+    else
+        echo "$myCopy contents same as golden copy $goldenCopy, no need to update"
+    fi
+}
+
+# - assume $SHARE variable always exists
+# - assume shell init file is either .bashrc or .profile or .bash_profile, use .bashrc if exist
+# - assume base filename of the golden copy of mysh is '_bashrc.*master*', or
+#   whatever name it is that .bashrc or .profile or .bash_profile is linked from
+# - assume max 1 level of linking the file, no linking on top of linking, and must be Symbolic-link
+update_mysh() {
+
+    if ! isShareMounted; then
+        echo "Shared drive with mysh's golden code is not mounted on $SHARE"
+        echo "Please mount_share and try again"
+        return 1
+    fi
+
+    ## 'grep abc $initFile' will fail if $iniFile is "~/xxx"
+    ## '~' must be resolved to directory path already when 'grep' executes, or else 'grep' will
+    ## literally look for file named '~/xxx' instead of file 'xxx' in $HOME directory
+
+    ## check whether shell is using .bashrc or .profile or .bash_profile
+    [ -f ~/.bashrc ] && initFile="$HOME/.bashrc" || [ -f ~/.bash_profile ] && initFile="$HOME/.bash_profile" || initFile="$HOME/.profile"
+    echo $initFile used in this shell for initialisation
+
+    # find the sourcing and linking information
+    sourcedinitFile=`grep '^source.*_bashrc.*master' $initFile | sed 's/.* //'`
+    linkedinitFile=`readlink $initFile`
+
+    # assume either sourcing or linking, but not both
+    if [ -n "$sourcedinitFile" ]; then # test whether install ws based on sourcing
+        echo $initFile is sourcing $sourcedinitFile for mysh, checking difference with golden copy
+        update_mysh_code_ $sourcedinitFile
+    elif [ -n "$linkedinitFile" ]; then # test whether install was based on linking
+        echo $initFile is linking $linkedinitFile for mysh, checking difference with golden copy
+        update_mysh_code_ $linkedinitFile
+    else
+        echo "mysh code does not coming from sourcing or linking a copy of golden code"
+        echo "Do not know what to do, stopping the update !"
+    fi
+}
+
+python_http() {
+python -m SimpleHTTPServer
+}
+
+p3() {
+    python="none"
+    if [ `which python3.9 2>/dev/null` ]; then python=python3.9;
+    elif [ `which python3.8 2>/dev/null` ]; then python=python3.8;
+    elif [ `which python3.7 2>/dev/null` ]; then python=python3.7;
+    elif [ `which python3.6 2>/dev/null` ]; then python=python3.6;
+    elif [ `which python3.5 2>/dev/null` ]; then python=python3.5;
+    elif [ `which python3 2>/dev/null` ]; then python=python3;
+    fi
+
+    if [ $python = "none" ]; then
+        echo "no python version 3.x in the sytem"
+        exit
+    else
+        echo $python $@
+        $python $@
+    fi
+}
+
+timer() {
+    echo Hit enter to start timer
+    read a
+    date
+    start=`date +%s`
+    echo $start
+    echo Hit enter to stop timer
+    read a
+    date
+    stop=`date +%s`
+    echo $stop
+    echo `expr $stop - $start` seconds
+}
+
+# start explorer or whatever Win10 GUI apps on the parameter $1
+# 'expl ' starts windows explorer on current dir
+# 'expl xxx/yyyy/abc.doc' starts Word on 'abc.doc'
+# 'expl xxx/yyyy/abc.xls' starts Excel on 'abc.doc'
+#expl() {
+#    if [ $PLATFORM = 'LINUX-WSL' ]; then
+#        /mnt/c/Windows/system32/cmd.exe /c "start ${1//\//\\}"
+#    else
+#        cmd /c "start ${1//\//\\}"
+#    fi
+#}
+alias expl=explorer
+alias explore=explorer
+
+# git stuff
+# find . but ignore files from path $1
+# fnp .git  will ignore files in '*.git*'
+fnp() {
+    find . -not -path "*$1*"
+}
+
+# tmux is very useful for starting youtube download inside ssh to DiskStation
+# then exit tmux by 'ctrl-b,d', then exit ssh. Later after ssh again to diskstation, do tmux attach
+tmuxalias() {
+alias talias='type tmuxalias'
+alias tmuxDetach='echo ctrl-b, d'
+alias tmuxAttach='tmux attach'
+alias tmuxlist='tmux ls'
+alias tmuxAttach1='tmux attach-session -t 1'
+alias tmuxKillSession1='tmux kill-session -t 1'
+alias tmuxRenameSession='echo ctrl-b, $'
+alias tmuxSwitchSession='echo ctrl-b, s or ) or ('
+alias tmuxSample='echo see examples on NAS: $SHARE/Movies/youtube/tmux-whatever and $SHARE/Movies/youtube/dl-macmaster'
+alias tmuxScrollBUffer='echo Ctrl-B then [ to enter buffer mode, then PageUp/Down'
+alias tmuxSplitVert='echo ctrl-b,%'
+alias tmuxSplitHorz='echo ctrl-b,"'
+alias tmuxCmd='echo ctrl-b, :'
+alias tmuxHelp='echo ctrl-b, ?'
+
+# show current activities of a particular detached session
+# use capture-pane -p option. '-t 1:0' means windows 0 of unamed session '1', -S 10 means start capture from line 10
+alias tmuxShowSession1='tmux capture-pane -t 1:0 -p -S 10'
+
+}
+tmuxalias
+
+gitalias() {
+alias galias='type gitalias'
+
+# --show-origin tells you where that config item comes from, for debug why cygwin/git-bash sees different options
+# then add include in the common config ~/.gitconfig to make them align
+# [include]
+#     path = C:/ProgramData/Git/config
+alias gconfig='git config --list --show-origin'
+alias gcfgAdd='git config --global core.autocrlf true'
+
+# merge localbranch to local master
+alias gmergeLocalToMaster='git checkout master; git merge <localbranch-name>'
+
+alias fng='fnp .git'
+alias gs='git status'
+alias gcurrbranch='git branch --show-current'
+# alias gr='git reset'
+alias gr='git rm -r --cached'
+# undo last git commit
+alias guncommit='git reset --soft HEAD^'
+# undo git add
+alias gunadd='git reset HEAD'
+alias ga='git add'
+alias gc='git commit -m '
+alias gsum='git log --summary'
+alias gdtl='git log -p'
+alias glog1='git log --oneline'
+alias gPrevFile='git checkout [SHA] filename'
+alias gPrevVer='git checkout [SHA]'
+# list what are in my repository (vs non-tracked files)
+### alias gls='git ls-files' # this alias commented out due to clash with zsh oh-my-zsh
+alias gfind='git ls-tree -r -full-tree --name-only HEAD'   # = current branch
+alias gfind='git ls-tree -r -full-tree --name-only master' # or other branchname
+# gver <hashcode>:fname        where hascode comes from gsum or gdtl
+# gver HEAD{2020-05-10}:fname  where date comes from gsum or gdtl
+alias gver='git show '
+# git branches
+# - committed changes to a certain branch are not visible to other branches
+# - new files created in a branch are not visible to other branches
+# shows branches including remote repository that I cloned here
+alias gb='git branch -a'
+# git checkout branchname    switch to the branch
+alias gsb='git checkout'
+# git stages : modify, add, commit(revert change), push
+alias gdiff='git diff'
+alias gdiffb='git diff b1..b2' # git diff branch b1 vs b2
+# git checkout fname   discard changes on fname that has not been 'added'
+alias gdisc='git checkout'
+alias grev='git revert ' # 'hashcode' from 'git log --summary'
+# stash changes, show and pop stashed changes
+# stashes can be carried around different branches
+# gsts "comment ..." adds the comment to stash
+alias gsts='git stash save'  # save stashed copy, unwind changes
+alias gstl='git stash list'  # show stashes 
+alias gstd='git stash show -p'  # show stashes in detail
+alias gstpop='git stash pop'      # unwind the stash, apply back the stashed changes
+alias gstpush='git stash push -m "comment" [filename]'      # stash obly [filename] and give it label "comment" which shows in 'git list'
+# remote repository is where I cloned this repository from
+# 'git clone .../myapp myapp' will clone into current dir's 'myapp'
+alias gsrc='git remote -v'  # what is my 'remote origin', where I cloned repo from
+# always do 'git pull origin [branchname]' before 'git push origin [branchname]'
+alias gpull='git pull origin'
+alias gpush='git push origin'
+# resolve merge failure in the 'cloned' repo, and push to 'origin'
+# - 'gsb master' switch to master branch in 'cloned' repo
+# - 'git merge login' failed, readme.txt has conflict between login/master branch
+# - must do 'git reset --merge' before you can switch to 'login' branch
+# - 'git log --summary readme.txt' to find hashcode of commit to be reverted
+# - 'git checkout login' to switch to 'login' branch
+# - 'git revert 76c7471cfc687af578219677f59ce0fc96e89bd3'  (alias grev above)
+# - 'git merge login' worked 
+# - 'git push' failed, 'origin' already checked out 'master'
+# - go to 'origin' (WorkAndHints/git/myapp) to 'git checkout login' branch instead
+# - 'git push' worked
+#
+# add a remote repo in github as origin of /WorkAndHints/git/myapp
+# - login to github (lamalfred06/UST) and create project myapp
+# - from /WorkAndHints/git/myapp in cygwin
+# 'git remote add origin https://github.com/lamalfred06/myapp.git'
+# 'git remote -v'
+# 'git push origin master'  (will ask for github id/pw ??)
+
+# access github using ssh instead of https id/pw, after alfred's public ssh key was uploaded to github
+alias ghCloneJavaTest='git clone git@github.com:lamalfred06/java_Test.git'
+
+}
+gitalias
+
+# for diskstation php httpserver
+alias php_http='php -S 192.168.11.28:8000'
+
+alias ms=mount_share
+alias ff="find . -type f"
+
+# put/get file $1 to remote computer using scp
+scputJoanna() {
+    scp ${1} joanna@192.168.11.187:/Users/joanna
+}
+scgetJoanna() {
+    scp joanna@192.168.11.187:/Users/joanna/${1} ~/${1}
+}
+
+linesOf() {
+    if [ ${#} -eq 3 ]; then
+        sed -n "$1,$2p;$2q" $3
+    else
+        sed -n "$1p;$1q" $2
+    fi
+}
+
+lastBytesOf() {
+    tail -c $1 $2
+}
+firstBytesOf() {
+    head -c $1 $2
+}
+
+# grep and show line number, of [Optional: x lines above and below] matched line
+grepLine() {
+    if [ ${#} -eq 3 ]; then
+        grep -${1}n "$2" $3
+    else
+        grep -n "$1" $2
+    fi
+}
+# grep and show byte number, of [Optional: x lines above and below] matched line
+grepByte() {
+    if [ ${#} -eq 3 ]; then
+        grep -${1}b "$2" $3
+    else
+        grep -b "$1" $2
+    fi
+}
+
+alias clearHistory='cat /dev/null >  ~/.bash_history && history -c && exit'
+# below was/is installed in CoinMachine's Ubuntu 2021 version 20.04
+
+if ! [ $PLATFORM = 'OSX' ]; then
+    if uname -a | grep -q "X86" ; then
+        # for JoannaMacMini tensorflow
+        source ~/tensorflow-metal/bin/activate
+    fi
+fi
+
+# $1 is name of the RAW or JPG file with all the EXIF attributes
+exif() {
+    /Users/alfred/Photos/ExifTool985/exiftool $1
+}
+
+alias tensorflowGPUjupyter='sudo docker run --gpus all -it --rm -p:8888:8888 tensorflow/tensorflow:latest-gpu-jupyter'
+alias tensorflowGPU='sudo docker run --gpus all -it --rm -v /home/alfred/scripts:/scripts tensorflow/tensorflow:latest-gpu'
+
+# 1) Note: in X1Carbon's WSL (Ubuntu), tensorflow is also installed
+# import tensorflow as tf; tf.__version__  # shows python3.5.1 and tf 2.3.1
+# 2) Also : the keras course mentioned above, started by alias below also uses port 8888
+# alias start_docker_jupyter='docker run -i -t --network=host -v /c/Users:/c/Users keras/alfred /bin/bash -c "/app/start_docker_jupyter"'
+# 3) below non-GPU image was installed in X1Carbon's Docker Toolbox, 
+# Must shutdown keras course's container before starting below. Should connect also as http://192.168.99.100:8888/?token=......
+alias tensorflow='docker run -it --rm -p:8888:8888 tensorflow/tensorflow:latest-jupyter'
+
+# Note : in raspberry pi3 raspian installation of 2021 Apr, also installed tensorflow
+
+# jetson-nano 2021 APr ======
+# Use Advanced IP Scanner to scan for ip addresses of devices in the LAN
+alias jetson_nano_wifi='ssh -l alfred 192.168.11.29'
+alias jetson_nano_wire='ssh -l alfred 192.168.11.128'
+# 1) installed tensorflow based on below
+# https://docs.nvidia.com/deeplearning/frameworks/install-tf-jetson-platform/index.html
+# git clone https://github.com/jetsonhacks/jetsonUtilities.git
+# jetsonUtilities/jetsonInfo.py  shows jetpack details
+alias nanoPower="sudo nvpmodel -q" # nvidia jetson nano power management (power mode, fan, ..)
+# alias nanoTemp='cat /sys/devices/virtual/thermal/thermal_zone*/type > a && cat /sys/devices/virtual/thermal/thermal_zone*/temp > b && paste a b && rm a b'
+alias nanoTemp='paste <(cat /sys/devices/virtual/thermal/thermal_zone*/type) <(cat /sys/devices/virtual/thermal/thermal_zone*/temp) | while read -r i j; do echo $i $j; done'
+alias mount_share1="sudo ln -s /var/run/user/1000/gvfs/smb-share\:server\=syno216.local,share\=homes/Public /mnt/share1"
+alias share1="cd /mnt/share1"
+# 2) trying to run  dockers based on below worked 
+# cuda https://github.com/Technica-Corporation/Tegra-Docker#simple-gpu-docker-image
+# nvcr https://developer.nvidia.com/embedded/learn/tutorials/jetson-container
+# if no updates are done after jetson install, the containers runs fine
+# below should use 3.4 image if using jetpack 3.4 instead of 3.5
+# map /home/alfred/scripts dir as docker's /scripts dir
+# alias nanoTensorflowDocker="sudo docker run -it --rm --net=host --runtime nvidia -e DISPLAY=$DISPLAY -v /tmp/.X11-unix/:/tmp/.X11-unix -v /home/alfred/scripts:/scripts nvcr.io/nvidia/l4t-tensorflow:r32.5.0-tf2.3-py3"
+# goes into tensorflow docker image, then run /scripts/* by 'python3 /scripts/*'
+alias nanoTensorflowDocker="sudo docker run -it --rm --net=host --gpus all -v /home/alfred/scripts:/scripts nvcr.io/nvidia/l4t-tensorflow:r32.5.0-tf2.3-py3"
+
+# run docker for SageMath in DS720. Then access the Jupyter page 192.168.11.28:8888
+alias sageMathDocker="sudo docker run -it --rm --name segaMathCmd -v /var/services/homes/Public/WorkAndHints/SageMath:/home/sage/SageMath sagemath/sagemath:latest"
+alias sageMathDockerJupyter="sudo docker run -p8888:8888 --name SegaMath -v /var/services/homes/Public/WorkAndHints/SageMath:/home/sage/SageMath sagemath/sagemath:latest sage-jupyter"
+
+# run maxima CAS (Computer Algebraic System)
+alias maxima="echo 'installed via hombrew or\nrun online http://www.dma.ufv.br/maxima/index.php\nref https://maxima.sourceforge.io/download.html\nref https://maxima.sourceforge.io/documentation.html\nCTRL-d to exit' && \maxima"
+alias wxmaxima="echo 'installed via hombrew' && \wxmaxima"
+
+# run GNU Octave in M1MBA, as of Feb 2025
+alias octave="echo added 'setenv PYTHON /Users/alfred/miniforge3/bin/python3' in octaverc, such that python symbolic package sympy can be used in Octave\n && \octave"
+# will hang if not remove the octave-gui.ini
+alias octave_gui="rm /Users/alfred/.config/octave/octave-gui.ini && \octave --gui &"
+
+# run jupyter notebook in M1MBA after mini conda installation
+# the directory where you run below becomes the home for the jupyter session,
+# any notebook (ipynb file) will be revealed in the Browser page started by below
+alias jupyter_notebook='jupyter notebook'
+
+# from M1MBA
+ntpFromDS720() {
+    ssh -l alfred 192.168.11.28 'date +"%T.%N"'
+    gdate +"%T.%N"
+
+    # sudo sntp -sS time.apple.com
+    sudo sntp -sS 192.168.11.28
+    echo "or try time.apple.com"
+
+    ssh -l alfred 192.168.11.28 'date +"%T.%N"'
+    gdate +"%T.%N"
+}
+alias ntp_FromDS720=ntpFromDS720
+
+# Intel Openvino in pi3 ======
+alias vino_env='source /opt/intel/openvino/bin/setupvars.sh'
+alias vino_env_2019='source /opt/intel/openvino2019/bin/setupvars.sh'
+alias vino_test='/home/pi/vino_build/armv7l/Release/object_detection_sample_ssd -m face-detection-adas-0001.xml -d MYRIAD -i /home/pi/Desktop/IMG_2282.JPG'
+
+# youtube download  https://ytdl-org.github.io/youtube-dl/index.html
+# installed in WSL /home/alfred
+alias youtube-dl="./youtube-dl --playlist-start 88 --playlist-end 150 https://www.youtube.com/playlist?list=PLuwJy35eAVaIDgH7hgOpknp7KPOaibNjN"
+alias youtube-dl-i="./youtube-dl --get-id https://www.youtube.com/playlist?list=PLuwJy35eAVaIDgH7hgOpknp7KPOaibNjN -i"
+
+# mps-youtube in diskstation, goes into python virtual env first after ssh to diskstation alfred account
+# see mpsyt-install.doc in youtub directory of NAS and bookmarks in FireFox tech_stuff folder
+alias ds-virtualenv='. env/bin/activate'
+alias mps-youtube='mpsyt'
+
+# installed youtube downloader new, by 'brew install yt-dlp'
+alias youtube_download_mp4="yt-dlp -f mp4 url_of_playlist or video"
+# example: yt-dlp -f mp4 "https://www.youtube.com/playlist?list=PLDPnGbm0sUmpzvcGvktbz446SLdFbfZVU"
+
+# find my own public ip address, especially if using VPN
+alias my_public_ip="dig +short myip.opendns.com @resolver1.opendns.com"
+
+# 0) Win10 binary downloaded from haskell official site and unzip, add bin dir to Windows PATH, run fine from DOS
+# 1) WSL platform installed simply using 'sudo apt-get install haskell-platform'
+# 2) Mac OSX must install XCode, then install gchup from: curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+# 3) to interface with Win10 ghci in mingw/gitbash, use mintty (or nothing) in cygwin
+# 4) readline works for ghci for all platforms. Win10 DOS sessions, shares same readline history as Gitbash winpty
+# 5) Haskell plugin for vscode is installed for X1Carbon, Synology Win10VM, JoannaMacMini. Extremely useful
+# 6) See /share_alfred/Installations/Synology/synology_win10VM_install_usage.txt for fixing vscode Haskell plugin problem in the VM
+if [ $PLATFORM = 'MINGW' ]; then
+    # Need cygpath only if need compatibility with cygwin, mingw can understand DOS format path
+    alias haskell="cd 'c:\Users\alfred\ghc-8.10.7\haskell_scripts\stack_projects\stack_proj1\test' && echo 'type winpty ghci to starts haskell'"
+elif [ $PLATFORM = 'LINUX-WSL' ]; then
+    alias haskell="cd /mnt/c/Users/alfred/ghc-8.10.7/haskell_scripts/stack_projects/stack_proj1/test && echo 'type ghci to starts haskell'"
+elif [ $PLATFORM = 'OSX' ]; then
+    # stack will build binaries into /Users/joanna/.local/bin
+    export PATH=/Users/joanna/.ghcup/ghc/8.10.7/bin:/Users/joanna/.local/bin:$PATH
+    alias haskell="cd ~/haskell_scripts && echo 'type ghci to start. You are editing replicates of NAS archive WorkAndHinst/haskell_scripts, golden source is X1Carbon'"
+elif [ $PLATFORM = 'CYGWIN' ]; then
+    # alias haskell="cd `cygpath 'c:\Users\alfred\ghc-8.10.7\haskell_scripts'` && echo 'start haskell as mintty ghci filename.hs'"
+    alias haskell="cd `cygpath 'c:\Users\alfred\ghc-8.10.7\haskell_scripts\stack_projects\stack_proj1\test'` && echo 'type ghci to starts haskell'"
+fi
+
+# APL
+# can run online version (tryapl.org) or download pi/deb/rpm/win/osx version from www.dyalog.com
+if [ $PLATFORM = 'LINUX-WSL' ]; then
+    # installed by building from GNU APL src
+    alias APL="apl"
+fi
+
+# LISP
+if [ $PLATFORM = 'CYGWIN' ]; then
+    alias lisp="clisp"
+elif [ $PLATFORM = 'LINUX-WSL' ]; then
+    alias lisp="sbcl"
+elif [ $PLATFORM = 'MINGW' ]; then
+    # will work for cygwin and Win10 too
+    # ctrl-x, ctrl+ to increase font size, ctrl-X,Ctrl-c to quit
+    # can also change font size after Portable started by "Options | set default font"
+    alias lisp="start /c/Users/alfred/portacle/portacle"
+elif [ $PLATFORM = 'LINUX-Ubuntu' ]; then
+    # https://marketplace.visualstudio.com/items?itemName=ailisp.commonlisp-vscode
+    # test on either X1Carbon or Synology Ubuntu VM
+    alias lisp='echo try install vscode+lisp plugin, compare user experience of vscode+haskell plugin'
+fi
+
+# vscode is installed under 'C:\Program Files\Microsoft VS Code\Code.exe', also installed for JoannaMacMini
+# see c:\Users\alfred\ghc-8.10.7\haskell_scripts\readme.txt  vscode section for how to debug haskell code
+# vim plugin installed, see https://github.com/VSCodeVim/Vim for detailed functionality
+# in particular 'gd' goes to Definition of a variable or function, i.e. gd = F12, very very useful
+# Can override some of the key binding and keep original vsCode binding, e.g. Ctrl-F for Find
+# do so by editing package.json file
+#    /cygdrive/c/Users/alfred/.vscode/extensions/vscodevim.vim-1.21.10/package.json
+#    Alfred@LAPTOP-M47VOH5C CYGWIN /cygdrive/c/Users/alfred/.vscode/extensions/vscodevim.vim-1.21.10
+#    $ diff package.json.orig package.json
+#    811c811,812
+#    <                                               "<C-d>": true
+#    ---
+#    >                                               "<C-d>": true,
+#    >                                               "<C-f>": false,
+#    >                                               "<C-c>": false,
+#    >                                               "<C-v>": false
+alias vscode=Code
+
+# Oracle Cloud
+alias Oracle_Cloud='echo https://myservices-lamalfred06.console.oraclecloud.com/mycloud/cloudportal/gettingStarted'
+alias Oracle_Cloud_DB_ADMIN='echo https://g37f89590ec928a-p5iulj91kya6a6cw.adb.ap-tokyo-1.oraclecloudapps.com/ords/admin/_sdw/'
+alias Oracle_Cloud_DB_alfred='echo https://g37f89590ec928a-p5iulj91kya6a6cw.adb.ap-tokyo-1.oraclecloudapps.com/ords/alfred/sign-in/?r=_sdw%2F'
+
+alias xe_x1carbon='sqlplus xe@192.168.11.202:1521/XEPDB1'
+# for XE versions that has pluggable database, should use the pluggable database XEPDB1 instead of XE
+# alias xe_DS720_docker='sqlplus sys@192.168.11.28:51521/XE as SYSDBA'
+alias xe_DS720_docker_dba='sqlplus sys@192.168.11.28:51521/XEPDB1 as SYSDBA'
+alias xe_DS720_docker='sqlplus xe@192.168.11.28:51521/XEPDB1'
+alias xe2_DS720_docker='sqlplus xe@192.168.11.28:51522/XEPDB1'
+
+# to be run from within DS720
+
+alias start_oracle_xe='sudo docker run --name myxedb -d -p 51521:1521 -p 55500:5500 -e ORACLE_PWD=c2report -e ORACLE_CHARACTERSET=AL32UTF8 ivgg/oracle-xe-18c:18.4.0-1'
+alias start_oracle_xe2='sudo docker run --name myxedb2 -d -p 51522:1521 -p 55501:5500 -e ORACLE_PWD=c2report -e ORACLE_CHARACTERSET=AL32UTF8 ivgg/oracle-xe-18c:18.4.0-1'
+
+alias stop_oracle_xe='sudo docker stop containerid_from_docker_ps' # or stop from docker GUI in DS720
+alias check_oracle_xe='sudo docker container ls -a'
+alias restart_oracle_xe='sudo docker restart container_id_from_check_oracle_xe'
+alias docker_list_images='sudo docker images'
+alias docker_help='sudo docker --help'
+alias docker_list_containers='sudo docker container ls -a' # same as 'sudo docker ps -a'
+alias docker_list_container_detail='sudo docker container inspect containerid_from_docker_ps'
+alias docker_ps='docker ps -a'  # container mgmt, '-a' shows even shutdown runs
+alias restart_oracle_xe='sudo docker restart container_id_from_check_oracle_xe' # or stop/start from docker GUI in DS720
+# build and run tensorflow docker for DS720
+alias docker_DS720_ubuntu='sudo docker run -it --name ubuntu -v /var/services/homes/Public/WorkAndHints/machine_learning:/machine_learning ubuntu:20.04 /bin/bash'
+alias docker_DS720_tensorflow='sudo docker run -it --name tensorflow -v /var/services/homes/Public/WorkAndHints/machine_learning:/machine_learning non_avx_tensorflow2.3 /bin/bash'
+# reconnect to tensorflow container if it is running (started by DS720 Docker GUI)
+alias docker_DS720_reconnect_tensorflow='sudo docker exec -it tensorflow /bin/bash'
+
+# after download docker image 'centos' locally
+# based on https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04
+alias centos_docker='docker run -it centos'
+alias docker_ps='docker ps -a'  # container mgmt, '-a' shows even shutdown runs
+alias docker_ps_stop='docker stop contain_name_or_id'  # stops a container
+alias docker_ps_rm='docker rm container_name_or_id'  # remove a container
+# connect to a docker container that is running, below cfd96b842286 is the container id
+# connect is not same as attach 'docker attach cfd96b842286' means you connect into the container as the boot-strap, Ctrl-C will shutdown the container, use Ctrl-p + Ctrl-q instead
+# see https://riptutorial.com/docker/example/5562/attach-to-a-running-container
+alias docker_connect='docker container exec -it cfd96b842286 /bin/bash'
+
+alias docker_mongo='cd ~/mongo && docker-compose -f stack.yml up -d'
+# confluence, once container started, has web page on localhost:8090, will ask for license registration
+alias docker_confluence='docker run --name="confluence" -d -p 8090:8090 -p8091:8091 atlassian/confluence'
+
+# docker haskell DS720. Must first ssh into DS720
+# Can create container from DS720 docker GUI, or from below docker_run_DS720_haskell
+# from within ghci, ":quit" will exit and kill the container  (docker ps will not see haskell1)
+# from within bash, ":exit" will exit and kill the container  (docker ps will not see haskell1)
+# Use start/stop from DS720 GUI to avoid exiting the container and losing all persistence, e.g. newly installed vim
+# Or use docker_connect_* below to connect to a running container, exit will not kill that container
+# alias docker_run_DS720_haskell='sudo docker run -it --rm --name="haskell1" -v /var/services/homes/Public/WorkAndHints/haskell_scripts:/haskell_scripts haskell:latest ghci'
+alias docker_run_DS720_haskell='sudo docker run -it --rm --name="haskell1" -v /var/services/homes/Public/WorkAndHints/haskell_scripts:/haskell_scripts haskell:latest /bin/bash'
+alias docker_stop_DS720_haskell='sudo docker stop haskell1'
+alias docker_start_DS720_haskell='sudo docker start haskell1'
+alias docker_connect_DS720_haskell='sudo docker exec -it haskell1 /bin/bash'
+# docker haskell MBA M1
+# alias docker_run_M1MBA_haskell='docker run -it --rm --name="haskell1" arm64v8/haskell:latest /bin/bash'
+alias docker_run_M1MBA_haskell='docker run -it --rm --name="haskell1" -v /Volumes/homes/Public/WorkAndHints/haskell_scripts:/haskell_scripts arm64v8/haskell:latest ghci'
+alias docker_connect_M1MBA_haskell='docker exec -it haskell1 /bin/bash'
+alias docker_stop_M1MBA_haskell='docker stop haskell1'
+alias docker_start_M1MBA_haskell='docker start haskell1'
+
+alias docker_list_contexts='docker context list'
+alias docker_desktop='docker context use desktop-linux'
+# docker_local is usable and is same as docker_desktop after create symlink
+# /var/run/docker.sock -> /Users/alfred/Library/Containers/com.docker.docker/Data/docker.raw.sock
+alias docker_local='docker context use default'
+alias docker_colima='docker context use colima'
+
+# start/stop dokuwki in M1MBA.  Do start/stop of DS720 DokuWiki from Synology Management Web Docker GUI
+alias docker_start_dokuwiki='docker start dokuwiki'
+alias docker_stop_dokuwiki='docker stop dokuwiki'
+alias docker_connect_dokuwiki='docker exec -it dokuwiki /bin/bash'
+# '-O' is not be needed if 'scp' from Ubuntu instead of M1MBA
+alias copyDokuWikiFromNAS='scp -O -r alfred@192.168.11.28:/var/services/homes/alfred/DokuWiki/web/data ~/DokuWiki/web'
+
+# for brew install colima on M1MBA
+alias colima_start='colima start -c 4 -m 6'
+# may not need to specify x86_64 in M1MBA, seems consistently starts in x86, 'colima list' shows current architecture
+alias colima_start_x86='colima start -a x86_64'
+alias colima_stop='colima stop'
+alias colima_list='colima list'
+
+# Dec 2023 : web GUI for docker
+alias docker_portainer_create='docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v /Users/alfred/portainer_data:/data portainer/portainer-ce'
+alias docker_portainer_start='docker start portainer'
+alias docker_portainer_stop='docker stop portainer'
+
+alias utf16_to_8='iconv -f utf-16le -t utf-8 <a.txt >b.txt'
+
+# ubuntu (apt install nmap) and M1MBA (brew install nmap)
+alias list_network_device='sudo nmap -sn 192.168.11.0/24 | grep 192'
+
+# for Ubuntu
+#alias list_network_device='sudo snap connect nmap:network-control && sudo nmap -sn 192.168.11.0/24'
+alias list_my_network_card='sudo lshw -C network'
+alias wifi_network_speed='/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I'
+alias linux_version='lsb_release -a'
+alias install_history='less /var/log/apt/history.log'
+alias install_note='vi /mnt/share/Installations/Ubuntu_2021Dec_install_X1Carbon/Ubuntu20.04.3_2021Dec_Install_X1Carbon.txt'
+alias inote='install_note'
+alias DS720_Ubuntu16='ssh -l alfred 192.168.11.243'
+alias DS720_Ubuntu20_04='ssh -l alfred 192.168.11.128'
+alias DS720_Ubuntu22_04='ssh -l alfred 192.168.11.11'
+
+alias DS720_CentOS7='ssh -l alfred 192.168.11.153'
+
+alias Parallels_Ubuntu_bridged='ssh parallels@192.168.11.109'
+alias Parallels_Ubuntu_local='ssh parallels@10.211.55.5'
+alias desktop_dirs='echo "look for applications/* under each of XDG_DATA_DIRS=/usr/share/ubuntu:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop"'
+alias invert_k380_FnKeys='sudo fn_on.sh'
+alias list_sleep_resume="journalctl | grep systemd-sleep"
+alias map_wacom_buttons="~/map_wacom_buttons.sh"
+alias reduce_blue='xgamma -bgamma 0.9'
+# Note: night_light_on may not take effect if it was also set to schedule mode and is currently 'day time'
+# Dispplat Settings NightLight GUI provides enough flexibility that I think below ,ay not be necessary
+alias night_light_on='gsettings set org.gnome.settings-daemon.plugins.color night-light-enabled true && gsettings set org.gnome.settings-daemon.plugins.color night-light-temperature 4700'
+#alias night_light_on='(gsettings set org.gnome.settings-daemon.plugins.color night-light-enabled true;
+#                      gsettings set org.gnome.settings-daemon.plugins.color night-light-temperature 4000)'
+alias night_light_off='gsettings set org.gnome.settings-daemon.plugins.color night-light-enabled false'
+
+alias restart_syslog_nt="sudo /etc/init.d/syslog-ng restart"
+
+# 1) apt-get installed redis-server in DS720 Ubuntu_20_04 VM as service
+# 2) brew installed redis-server and Insight in M1 MBA
+alias start_redis_server='redis-stack-server' # needed for Mac, not Ubuntu
+alias start_redis_client='redis-cli' # all platforms
+alias start_redisInsight='echo "pls start from Mac LaunchPad"'
+
+# diskuse * gives 1 line on each of the subdir, in k, M, G
+alias diskuse='du -d 0 --si'
+
+# PAGER for better 'man xxx' experience
+# `which most` && export PAGER=most
+
+
+# based on python documentation on http.server and below URL
+# https://stackoverflow.com/questions/2189098/embedding-short-python-scripts-inside-a-bash-script
+mini_http() {
+echo "starting python mini_http server on currect directory using HEREDOC"
+echo "connect as http://localhost:8000"
+python <<END
+import http.server
+import socketserver
+PORT = 8000
+Handler = http.server.SimpleHTTPRequestHandler
+with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    print("serving at port", PORT)
+    httpd.serve_forever()
+
+END
+}
+
+# #### All of this section is OBOSOLETE by setting up DS720 systemd to start/stop mini_http_text_all  ===========================
+# # Below will only work fully when mini_http are started from DS720
+# # Because Installations/WorkAndHints_Link is a symbolic link that is created within DS720
+# # Just like DS720 files are served by smb to the LAN, DS720 also http serve these files to the LAN
+# # There is no need to http serve such files from anywhere else including M1MBA
+# # How do I secure the DS720:8001 port ?
+# # Below to be run from DS720
+# alias mini_http_text_start='uname -a | grep -q -v DS720 && echo "Not in DS720" && return; cd $SHARE/Installations && nohup ./mini_http_text_all.sh 8001 &'
+# alias mini_http_text_status='uname -a | grep -q -v DS720 && echo "Not in DS720" && return; cd $SHARE/Installations && ./mini_http_text_stop.sh statusOnly'
+# alias mini_http_text_stop='uname -a | grep -q -v DS720 && echo "Not in DS720" && return; cd $SHARE/Installations && ./mini_http_text_stop.sh'
+# 
+# # Below to be run from M1MBA
+# # TODO : enhance below 'DS720_mini_http_text_start' to do disown by 1 of below method, such that we do not need to do CTRL-C to return from ssh shell
+# #        In fact, starting from M1MBA does not seem to work, proven after further testing
+# # (1) alfredDS720 /var/services/homes/Public/Installations SYNOLOGY
+# #    7:31:54 $ jobs | grep mini_http_text_all | sed 's/].*//' | sed 's/\[//' | disown
+# # (2) Use zsh specific way to do nohup job, assuming DS720 indeed is always running zsh  'nohup .... &!'
+# # (3) try usage of tmux instead ?
+# # (4) or how did I remotely start oracle? Why did that work?
+# # (5) or how can I make the starting of mini_http_text_all a service in Synology?
+# # alias DS720_mini_http_text_start='ssh -l alfred 192.168.11.28 "cd /var/services/homes/Public/Installations && nohup ./mini_http_text_all.sh 8001 &! ; exit"'
+# # alias DS720_mini_http_text_start='ssh -l alfred 192.168.11.28 "cd /var/services/homes/Public/Installations && (nohup ./mini_http_text_all.sh 8001 &); echo CTRL-C to return from ssh"'
+# alias DS720_mini_http_text_start='ssh -l alfred 192.168.11.28 "cd /var/services/homes/Public/Installations && nohup ./mini_http_text_all.sh 8001 &!"'
+# alias DS720_mini_http_text_status='ssh -l alfred 192.168.11.28 "cd /var/services/homes/Public/Installations && ./mini_http_text_stop.sh statusOnly"'
+# alias DS720_mini_http_text_stop='ssh -l alfred 192.168.11.28 "cd /var/services/homes/Public/Installations && ./mini_http_tesystemd_reload='sudo systemctl daemon-reload'xt_stop.sh"'
+# #### All of this section is OBOSOLETE by setting up DS720 systemd to start/stop mini_http_text_all  ===========================
+
+# Below to be run from DS720
+alias systemd_start_mini_http_text_all='uname -a | grep -q -v DS720 && echo "Not in DS720" && return; sudo systemctl start mini_http_text_all'
+alias systemd_status_mini_http_text_all='uname -a | grep -q -v DS720 && echo "Not in DS720" && return; sudo systemctl status mini_http_text_all'
+alias systemd_stop_mini_http_text_all='uname -a | grep -q -v DS720 && echo "Not in DS720" && return; sudo systemctl stop mini_http_text_all'
+alias systemd_update_mini_http_text_all='uname -a | grep -q -v DS720 && echo "Not in DS720" && return; sudo vi /etc/systemd/system/mini_http_text_all.service'
+
+# R Studio docker
+# start from DS720 Docker GUI the rocker/rstudio:latest
+# access from any browser 192.168.11.28:8787
+# id/password is  rstudio/password
+# https://rocker-project.org/images/versioned/rstudio.html
+alias rstudio="echo 'access from any browser 192.168.11.28:8787 id/pw rstudio/password"
+
+
+# Google USB EdgeTPU on M1 MBA
+alias coral_M1MBA_example="cd /Users/alfred/coral/pycoral && \
+    python3 examples/classify_image.py \
+    --model test_data/mobilenet_v2_1.0_224_inat_bird_quant_edgetpu.tflite \
+    --labels test_data/inat_bird_labels.txt \
+    --input test_data/parrot.jpg"
+
+
+# start zsh for diskstation DS720, which used ipkg to install zsh
+if [ $PLATFORM = 'SYNOLOGY' ] && ! [ $SHELL = '/opt/bin/zsh' ]; then
+    export SHELL=/opt/bin/zsh
+    exec $SHELL
+fi
+
+# Manage Parallels VMs ===================================================================
+# ssh to Parallels OracleLinux VM of M1MBA, from M1MBA only. OracleLinux8 VM is started with 'Shared Network' and hence have ip 10.211.55.*
+# Therefore OracleLinux8, or 10.211.55.* CANNOT be reached by Parallels VMs (Win11, Ubuntu), nor DS720 VMs
+alias OracleLinux8_alfred='ssh alfred@10.211.55.7'
+# for interactive use of clients like sqlplus, sqlldr, ...
+alias OracleLinux8_oracle='echo password "oracle" or use alfred public key && echo "" && ssh oracle@10.211.55.7'
+alias OracleLinux8_oracle_start_db='ssh oracle@10.211.55.7 "source ~/start_oracle_db"'
+alias OracleLinux8_oracle_stop_db='ssh oracle@10.211.55.7 "source ~/stop_oracle_db"'
+alias OracleLinux8_oracle_start_listener='ssh oracle@10.211.55.7 "lsnrctl start"'
+alias OracleLinux8_oracle_stop_listener='ssh oracle@10.211.55.7 "lsnrctl stop"'
+
+# start/stop the OracleLinux8 VM
+alias OracleLinux8_start='prlctl start OracleLinux8' # only work for Parallels-Pro
+alias OracleLinux8_stop='prlctl stop OracleLinux8' # only work for Parallels-Pro
+alias listParallelsVM='prlctl list -a'
+
+# Manage DS720 VMs ===================================================================
+alias DS720_showVM='diskstation720 "source ~/manageVM.sh; showVMStatus"'
+alias DS720_show_Win10='diskstation720 "source ~/manageVM.sh; showVMStatus Win10"'
+alias DS720_start_Win10='diskstation720 "source ~/manageVM.sh; startVM Win10"'
+alias DS720_stop_Win10='diskstation720 "source ~/manageVM.sh; stopVM Win10"'
+alias DS720_start_CentOS7='diskstation720 "source ~/manageVM.sh; startVM CentOS7"'
+alias DS720_stop_CentOS7='diskstation720 "source ~/manageVM.sh; stopVM CentOS7"'
+alias DS720_start_Ubuntu20='diskstation720 "source ~/manageVM.sh; startVM Ubuntu20_04_3"'
+alias DS720_stop_Ubuntu20='diskstation720 "source ~/manageVM.sh; stopVM Ubuntu20_04_3"'
+
+putKey() {
+    server=$1;
+    [ -z "$server" ] && echo 'Please enter server name to receive public key' && read server;
+    echo ${server};
+    ssh-copy-id -f -i ~/.ssh/authorized_keys.myKey.pub alfred@${server};
+}
+
+# use 'sdk' for installing groovy/kotlin/gradle/maven/...
+# curl -s https://get.sdkman.io | bash
+# sdk list  (to see what is available)
+# sdk install groovy
+#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
+export SDKMAN_DIR="$HOME/.sdkman"
+[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+# Below Does not work in M1MBA due to very complicated shell setup
+#echo ${YELLOW}Using vi key binding for shell interaction${RESTORE}
+#set -o vi
+
+
+alias swimming="echo clubhouse indoor: 7:30-12:20 13:40-17:50 19:10-22:30  outdoor: 7:30-13:25 14:40-18:55 20:10-22:30"
+
+alias usTechGain="calc '(400*(150-65) + 70*(1020-650) + 300*(295-110) + 100*(250-140) + 100*(515-260)) * 7.8'"
+alias usTechWorth="calc '(400*150 + 70*1020 + 300*295 + 100*250 + 100*515) * 7.8'"
+alias hkGain="calc '2500*(66-74)   +15000*(7.3-13.46) +6000*(51.45-49.65) +3500*(52.3-64) +3000*(41.3-74.3) +4500*(40-47.6) +6000*(50-41.8)  +2000*(254 - 166)   +400*(495-251)'"
+alias hkWorth="calc '2500*(66)     +15000*(7.3)       +6000*(51.45)       +3500*(52.3)    +3000*(41.3)      +4500*(40)      +6000*(50)       +2000*(254)        +400*(495)'"
+alias hkStocks="echo '2500*CLP0002 +15000*HKGas0003 +6000*CKI1038       +3500*CK0001    +3000*Link0823    +4500*AAC2018   +6000*PAsset0006 +2000*ManuLife0945 +400*2834Nasdaq'"
+alias assets='echo bond stock fund LifeInsurance InsuranceInvestment rrsp mpf cash preciousMetal jewelery'
+alias nomuraNotebookLogon='open ~/Desktop/Nomura_NoteBook_Logon.jpg'
