@@ -102,6 +102,9 @@ multiline echo
     def \
     xyz'
 
+mixed use of ' and "
+    please check _bashrc file for examples
+
 find and xargs
     alfredMacBookAir /Users/alfred/IdeaProjects OSX
         find . -type f | grep java$ | xargs grep -n Optional 2>/dev/null
