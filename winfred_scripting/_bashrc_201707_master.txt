@@ -1334,6 +1334,32 @@ p3() {
     elif [ `which python3 2>/dev/null` ]; then python=python3;
     fi
 
+    #if [ which python3.9 2>/dev/null ]; then python=python3.9;
+    #elif [ which python3.8 2>/dev/null ]; then python=python3.8;
+    #elif [ which python3.7 2>/dev/null ]; then python=python3.7;
+    #elif [ which python3.6 2>/dev/null ]; then python=python3.6;
+    #elif [ which python3.5 2>/dev/null ]; then python=python3.5;
+    #elif [ which python3 2>/dev/null ]; then python=python3;
+    #fi
+
+    if [ $python = "none" ]; then
+        echo "no python version 3.x in the sytem"
+        exit
+    else
+        echo $python $@
+        $python $@
+    fi
+}
+
+p3a() {
+    python="none"
+    which python3 2>/dev/null 1>&2 && python=python3;
+    which python3.5 2>/dev/null 1>&2 && python=python3.5;
+    which python3.6 2>/dev/null 1>&2 && python=python3.6;
+    which python3.7 2>/dev/null 1>&2 && python=python3.7;
+    which python3.8 2>/dev/null 1>&2 && python=python3.8;
+    which python3.9 2>/dev/null 1>&2 && python=python3.9;
+
     if [ $python = "none" ]; then
         echo "no python version 3.x in the sytem"
         exit
