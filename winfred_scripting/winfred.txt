@@ -62,6 +62,7 @@ How to do 'and', 'or' in script
     line 1268, 187 of _bashrc
 
 ===============================================
+run replay_expand inside vi
 
 Strong and Weak quote
 
@@ -113,3 +114,65 @@ find and xargs
         find . -type f | grep java$ | xargs grep -n Optional 2>&1 1>outout
 
         find . -type f | grep java$ | xargs grep -n Optional 2>/dev/null | tee out
+
+back quote
+==============
+alias td="date '+%Y%m%d'"
+
+today () {
+    echo `date '+%Y%m%d'`
+}
+
+you can use results of `commandX ...` in at least 3 ways:
+1) You want the output (stdout) of commandX
+2) You want the error (stderr) of commandX to decide on what next to do, either manually or programmatically
+3) You don't care about (1) or (2), want to react on return code of the commandX, assuming commandX is designed to
+    set useful return code based on how commandX executes
+     (grep give 0 to mean find something, 1 to mean not find, 2 to mean input file not exists)
+
+Note :
+- (1) may be useful to avoid creating temporary file  'commandX .. > out.txt; cat out.txt | grep ... ; ...'
+- Additional way of using `...` to quote a unit of work in p3() in the _bashrc
+
+rc in _bashrc revisited (echo $?)
+==================================
+grep XXX NonExistingFile  ==> return code 2
+
+    (base) 13/12/25 18:40:00 $ grep 'abc' ABC
+    grep: ABC: No such file or directory
+    alfredAlfreds-Air /Users/alfred OSX
+    (base) 13/12/25 18:40:53 $ rc
+    2
+    alfredAlfreds-Air /Users/alfred OSX
+    (base) 13/12/25 18:40:56 $ rc
+    0
+
+
+
+p3, p3a and ways to execute python
+===================================
+$ python3 -c 'print("Hello")'
+$ python3 Hello.py
+$ echo 'print("Hello")' | python3
+$ echo "print('Hello')" | python3
+Hello
+$ echo "print(\"Hello\")" | python3
+Hello
+$ echo 'print(\'Hello\')' | python3    fails
+
+Compare with 'sed',which does not need -c
+$ echo ABC | sed 's/A/a/'
+aBC
+
+Compare with 'ssh',which does not need -c
+$ ssh -l alfred 192.168.11.28 'uname -a
+Linux DS720 4.4.180+ #42218 SMP Thu May 12 04:14:22 CST 2022 x86_64 GNU/Linux synology_geminilake_720+
+
+Compare with perl which uses '-e'
+
+Compare with awk which does not need -c, and has other ways of invocation
+man awk
+   awk [ -F fs ] [ -v var=value ] [ 'prog' | -f progfile ] [ file ...  ]
+
+p3 vs p3a (will give you p3a after explaining it?)
+why p3() in _bashrc need `...`?
