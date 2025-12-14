@@ -1,0 +1,354 @@
+
+
+" Note : vim hugh model may be needed to support all mappings and status line in below setup
+" ==========================================================================================
+"
+" This file is c:\users\alfred\alldata\.vimrc .vimrc 
+" It is /home/Alfred/.vimrc in Cygwin 32/64 env due to c:\cygwin/64\home\alfred Windows-linked to c:\users\alfred\alldata
+" also Windows-linked as c:\users\alfred\alldata\.virc for Windows VIM to use
+" my vimrc file
+" syntax on
+set number
+"set ic tabstop=4 ai aw shiftwidth=4 nowrap
+set ic tabstop=4 aw shiftwidth=4 nowrap
+"do not start file readonly
+"set noro
+"do not auto indent when pasting, but do not turn off autoindent like 'se noai' does
+set copyindent
+" visualbell
+set vb
+
+" need to use noexpand if editing Makefiles
+" set noexpandtab
+set expandtab!
+
+"last status=0 get rid of the status line
+"set laststatus=0
+set laststatus=2
+"se statusline=%F%m%r%h%w\ [FMT=%{&ff}]\ [TYPE=%Y]\ [ENC=%{&fenc==\"\"?&enc:&fenc}]\ [ASC=\%03.3b]\ [HEX=\%02.2B]\ [POS=%l,%v][%p%%]%L
+se statusline=%F%m%r%h%w\ %{&ff}\,%Y\ [ENC=%{&fenc==\"\"?&enc:&fenc}]\ [ASC=\%03.3b]\ [HEX=\%02.2B]\ [%l,%v:%L]
+se filetype=unix
+se path=/home/lamal/scripts,/home/lamal/Scale/Sapphire/Host,.
+" needed otherwise backspace follows vi behaviour rather than vim, has many limitations
+se backspace=2
+" is means incremental search
+se hlsearch is
+" set Searched text's font
+hi Search term=reverse ctermfg=0 ctermbg=3 guifg=Black guibg=Yellow
+se nostartofline
+" for :find command, and gf, gF
+se path=~/scripts,~/scripts/awk,$PWD
+
+" syntax off
+" syntax highlight not supported by vim small model, but vi small model starts up very fast
+syntax on
+"if has("syntax")
+"	syntax on
+"endif
+
+if has("gui_running")
+   colorscheme morning
+endif
+
+" show tabs, trailing space, ..etc
+set list
+" set nolist
+set listchars=tab:->,trail:·,nbsp:·
+
+" what is below for ??
+" set clipboard=unnamed
+
+" split new window to the right of current window
+se splitright
+"se splitleft  "no such command, only has splitright
+
+" focus and scrollability in multiple windows editing to follow mouse placement
+" very useful when working together with below F2/FJ/FS commands that shows long 
+" compiler failures or test output on split screen
+" 'mouse=a' will disable mouse selection for copy/paste, press SHFIT key will allow that
+" However: Tested that mouse=a works for cygwin's terminal session, and 
+" native Ubuntu 'Terminal'. But not for WSL
+" se mouse=a
+
+" :FW execute whole file in python3 and send result to new screen
+command! FW call FilterToNewWindow('python3')
+function! FilterToNewWindow(script)
+    let TempFile = tempname()
+    let SaveModified = &modified
+    exe 'w ' . TempFile
+    let &modified = SaveModified
+    exe 'vsplit ' . TempFile
+    exe 'silent %! ' . a:script
+    exe 'w'
+endfunction
+
+" :F1 execute 'a to 'b in python3 and send result to new screen
+command! F1 call FilterToNewWindow1('python3')
+function! FilterToNewWindow1(script)
+    exe 'only'
+    let TempFile = tempname()
+    exe 'w'
+    exe "'a,'bw " . TempFile
+    exe 'vsplit ' . TempFile
+    exe 'silent %! ' . a:script
+    exe 'w'
+endfunction
+
+" :F2 execute whole file in python3 and send result to new screen
+"command! F2 call FilterToNewWindow2('python3')
+"command! F2 call FilterToNewWindow2('node')
+"command! F2 call FilterToNewWindow2('gppCompile.sh')
+command! F2 call FilterToNewWindow2('runghc'))
+function! FilterToNewWindow2(script)
+    exe 'only'
+    redraw
+"    sleep 1
+    let TempFile = tempname()
+    exe 'w'
+    exe "w " . TempFile
+    exe 'vsplit ' . TempFile
+    exe 'silent %! ' . a:script
+    exe 'w'
+" go to end of file '$' or '1' to line 1, then switch window
+" not as critical after doing :se mouse=a
+    exe '$'
+    "exe '1'
+    exe 'se wrap'
+    exe 'wincmd w'
+    exe 'se nu'
+endfunction
+
+" :FJ to test run this function
+command! FJ call CompileRunJava()
+function! CompileRunJava()
+    exe 'only'
+    redraw
+    exe 'w'
+    let fn = expand("%")
+    let cn = expand("%:r")
+    let cf = expand("%:r") . ".class"
+    let TempFile = tempname()
+    exe 'vsplit ' . TempFile
+    "redraw
+    "sleep 1
+    exe 'silent !javac ' . fn
+    "redraw
+    "sleep 1
+    exe 'silent r !java ' . cn
+    "redraw
+    "sleep 1
+    exe 'w'
+    exe '$'
+    exe 'silent !rm ' . cf
+    exe 'wincmd w'
+endfunction
+
+" :FS to test run this function
+command! FS call SmartExecutor()
+function! SmartExecutor()
+    let end = expand('%:e')
+    let prog = "unknown"
+    if end == "js"
+       let prog = "node"
+    elseif end == "cpp"
+       let prog = "gppCompile.sh"
+    elseif end == "py"
+       let prog = "python3"
+    elseif end == "java"
+       let prog = "javac"
+    elseif end == "st"
+       let prog = "gst"
+    elseif end == "hs"
+       let prog = "runghc"
+    elseif end == "m"
+       " let prog = "wolframscript -print all -f test.m"
+       " let prog = "wolframscript < test.m"
+       let prog = "wolframscript"
+    endif
+
+    echo prog
+    if prog == "node"
+       let result = system('uname -a | grep -ic Microsoft')
+       if result == 1
+    "       echo "WSL, has nodejs instead of node"
+           let prog = "nodejs"
+       endif
+    endif
+    echo prog
+    if prog == "javac"
+        call CompileRunJava()
+    elseif prog == "unknown"
+        echo "Unknown file type, do not know what to do"
+    else
+        call FilterToNewWindow2(prog)
+    endif
+endfunction
+
+command! FF call OnlyOrSplitWin()
+function! OnlyOrSplitWin()
+    "redraw
+    if winnr('$') > 1
+        exe 'only'
+    else
+        let prevFileName = expand('#')
+        if prevFileName != ""
+            " split /tmp stuff to the right, others on the left
+            if stridx(prevFileName, "/tmp") >= 0
+                exe 'botright vsplit #'
+                exe 'wincmd w'
+            else
+                exe 'topleft vsplit #'
+            endif
+            "exe 'wincmd r'
+        else
+            echo "No previous file"
+        endif
+    endif
+    redraw
+endfunction
+
+" https://vim.fandom.com/wiki/Use_abbreviations_for_frequently-used_words
+" typing "#i" and space will be expanded to "#include "
+iabbrev #i #include
+"iabbrev sc std::cout <<
+" typing "se" and ; will be expanded to '<< std::endl;'
+" iabbrev se << std::endl
+" typing "cl" and ( will be expanded to 'console.log('
+iabbrev cl console.log
+" typing "pl" and . will be expanded to 'printNl.'
+iabbrev pl printNl
+" NerdTree stuff
+cnoreabbrev NT NERDTree
+" tabn mappings (e.g. after using 't' to open file in NERDTree)
+map <C-t><C-t> :tabn<cr>
+
+"  (CTRL-V CTRL-[) can sometimes be replaced by <CR> in newer versions of VIM
+"  (CTRL-V CTRL-[) really means 'Esc' and cannot be replaced by <CR> in some other cases, e.g. map! #1 below
+" i.e.  means carriage return in colon mode, but means Esc in edit mode
+" F1 is normally 'help' for vim, the below overrided it. Use ":help" otherwise
+"map #1 :e /home/Alfred/filelist
+map #1 :e /home/Alfred/filelist<CR>G
+map! #1 :e /home/Alfred/filelist
+map <F1> :echo
+\"This is personal help\n
+\zR after vimdiff to unfold\n
+\And again"<CR>
+
+map <F2> :b1<CR>
+map <F3> :e#<CR>
+map <F4> :%!detab<CR>
+"map <F5> :%!sort -nG$
+map <F5> :%!sort -n<CR>G$
+
+" below does not work
+" map <F6> :s/{/{/g<CR>:s/}/}/g<CR>k>%
+" below work on vimformat.txt when ':se ai' is on
+map <F6> 0/{<CR>i<CR>	<ESC>ww/{<CR>i<CR>	<ESC>ww/cc2<CR>wi<CR><ESC>/}<CR>i<CR><ESC>ww/}<CR>i<CR><ESC>xww/}<CR>i<CR><ESC>x
+map <F6> :s/{/\r{/g<CR>:s/}/\r}/g<CR>k>%lj>%
+
+"classhierachy
+map <F7> :view /home/Alfred/classhierachy
+" split window and look for current word that starts a line on file classhierachy
+map <F8> "zyiw:exe "sp +/^".@z." /home/Alfred/classhierachy"<CR>
+map <F8> :q<CR>
+" :on means :only means close all other windows
+map <F8> :on<CR>
+map <F8> :w<CR>:FF<CR>
+imap <F8> <Esc>:w<CR>:FF<CR>
+" run external command derivedclass on current word
+map <F9> "zyiw:exe "!derivedclass ".@z.""<CR>
+map <F9> :w<CR>:!python3 %<CR>
+map <F9> :w<CR>:F2<CR>
+" imap is for mapping insert mode, such that <F9> is not inserted to the
+" editing text, but Escape to command mode
+map <F9> :w<CR>:FS<CR>
+imap <F9> <Esc>:w<CR>:FS<CR>
+
+map <F10> :w<CR>:F1<CR>
+
+" capture text to studyhistory
+map <F11> :redir>>/home/Alfred/studyhistory<CR>:echo expand("%:p").":".line(".")<CR>:redir END<CR>:.,+6w>>/home/Alfred/studyhistory<CR>
+map <F12> :e /home/Alfred/studyhistory<CR>
+
+" split to current buffer
+map <F11> :vs<CR>
+" split to buffer 1
+" map <F12> :sb 1<CR>
+map <F12> :vert sb 1<CR>
+
+" autocmd not supported by vim small model, but vi small model starts up very fast
+" override autocmd BufRead *.txt set tw=78 in /etc/vimrc in some Linux servers
+"autocmd BufRead *.txt set tw=120
+autocmd BufRead *.txt set tw=160
+" v7.3 or above
+" se colorcolumn=120
+
+se cursorline
+
+" force the term type to override tmux default of 'screen' type for term
+" update : force it will cause problem for cygwin 32 bit and gvim for Windows
+" 'has('unix') for cygwin 64's vim is true
+" 'has('win32') for Windows gvim is true whether Windows is 64 bit or 32 bit
+if has('macunix') || has('unix')
+    se term=xterm
+elseif has('win32')
+    se term=win32
+endif
+
+" cursor change shape between modes
+" 1) May be specific to mintty or common to xterm, mintty emulates xterm by default
+" 2) May not work in Linux platform's terminal emulator, will actually cause problem in Ubuntu terminal emulators. 
+" 3) Does not work in Putty but does no harm
+" 4) Does not work in mintty if GNU 'screen' used, but works for tmux
+" Update Feb 2020: Below settings are effective on vi sessions of JoannaMacMini's Terminal
+if &term=~'xterm'
+	let &t_ti.="\e[4 q"
+	let &t_SI.="\e[4 q"
+	let &t_EI.="\e[4 q"
+	let &t_te.="\e[4 q"
+"	let &t_ti.="\e[2 q"
+"	let &t_SI.="\e[1 q"
+"	let &t_EI.="\e[2 q"
+"	let &t_te.="\e[0 q"
+" 1 or 0 blinking block
+" 2 solid block
+" 3 blicking underscore
+" 4 solid underscore
+" Recent xterm (version 282 or above) also support
+" 5 blinking vertical bar
+" 6 solid vertical bar
+endif
+
+" Below does not work
+"highlight Cursor guifg=white guibg=black
+"highlight iCursor guifg=white guibg=steelblue
+
+" set no syntax when doing vimdiff
+" see also https://vi.stackexchange.com/questions/10897/how-do-i-customize-vimdiff-colors
+" for additional tuning options, especially on highlight colors
+silent! colo desert
+" silent! colo ron
+" silent! colo torte
+if $diff
+    syntax off
+endif
+
+
+" default font for gvim in Win10
+se gfn=Lucida_Console:h10:cANSI:qDRAFT
+
+" pretty format json
+" :%!python -m json.tool
+
+" Codeium AI extension is installed for M1MBA
+" See DokuWiki for details
+" Enable/Disable by ':Codeium Disable' or uncomment below line
+let g:codeium_enabled = v:false
+
+autocmd VimEnter * echo "do :AnsiEsc to see Ansi color coding, do :echo has('conceal') to check support conceal or not"
+
+" re-open file to previous position
+if has("autocmd")
+  au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
+endif
+
