@@ -1,0 +1,878 @@
+The following list gives the hint to vi editor usage. Note that not all
+command strings work for all flavours of vi editors. Some vi editors may
+behave differently from others.
+
+to move 1 line or 1 char
+========================
+h : left  1 char 
+j : down  1 line
+k : up    1 line
+l : right 1 char
+
+to save a file
+==============
+1) :x or ZZ
+
+going to the matching bracket
+=============================
+If you are at a {,},[,],(,) character, doing % will
+bring you to matching bracket
+
+to indent a block of lines in vi,
+=================================
+1) go to anywhere in starting line type  ma
+2) go to anywhere in ending line   type  >'a
+3) If you are at a {,},[,],(,) character, doing >% will shift the whole block
+    of text matched with the brackets. (% bring you to matching bracket)
+4) >}, >], >) will shift up to end of paragraph, section and sentence but
+    will not care about matching brackets
+5) V will start highlighting text with your cursor movement, then you can
+     type >. (In fact you can even do "! command" to execute command against
+     that block of text
+
+to delete a block of lines in vi,
+=================================
+1) go to anywhere in starting line type ma
+2) go to anywhere in ending line type   d'a
+3) If you are at a {,},[,],(,) character, doing >% will delete the whole block
+    of text matched with the brackets
+4) >}, >], >) will delete up to end of paragraph, section and sentence but
+    will not care about matching brackets
+
+The first "ma" means mark this current line as placeholder "a".
+The second > (shift right) , or d (delete) then followed by "'a"
+means execute the action up to the placeholder "a"
+
+to copy a block of lines in vi,
+===============================
+1) go to anywhere in starting line type ma
+2) go to anywhere in ending line type  "ay'a  (yank till placeholder 'a into a)
+3) go to anywhere and type "ap (paste buffer "a into current position)
+
+to copy a block of line without naming the block
+================================================
+1) go to anywhere in the starting line type 3yy (yank 3 lines)
+2) go to insertion point and type  p
+
+to move a block of line without naming the block
+================================================
+1) go to anywhere in the starting line type 3dd (del 3 lines)
+2) go to insertion point and type  p
+
+to copy a line to another file
+==============================
+1) go to the line and type yy
+2) save the file and type ":e# filename2" in the command line
+3) go to the place you want to insert the line and type p
+4) do not do any edit commands like "cw" in between otherwise the
+    line yanked into the unamed buffer will be overriden by new changes
+    which vi needs to do undo (u command)
+
+In general, yank and delete and ... takes similar cursor-movement options
+'a  till plcaeholder a
+5dd  :del 5 lines   5yy  :yank 5 lines
+5dl  :del 5 chars   5yl  :yank 5 chars
+d$   :del to eol    y$   :yank to eol
+3dw  :del 3 words   3yw  :yank 3 words
+
+to copy a word to multiple places
+=================================
+1) go to word, type yw
+2) go to where you want to paste, type p
+3) go to any other place you wants to paste, type .
+
+To do delete from colon mode
+============================
+1) :1,5d as opposed to 5dd from line 1 if using command mode
+
+To do changes to lines with the colon grep (:g) and colon subsitution(:s)
+=========================================================================
+1) :g/abc/d   delete all lines containing the string "abc"
+2) :g/yank/p   display all lines containing "yank"
+3) :g/abc /s//AAA/gc  find all occurences of "abc " in all lines and replace
+    it with "AAA", ask for confirmation. // means the word
+4) :g/.*/s//+abc&xy\&z\\/    for any number of occurrences of any characters,
+        substitute "the line" (&) with +abc"the line"xy&z\, the extra '\'
+        characters are there to tell the editor don't play "magic" on the next
+        char.
+5) (4) can be achieved also by  :1,$ s/^^/+abc/ and :1,$ s/$/xy\&z\\/
+        which means from line 1 to EOF, substitute begining of line by "+abc",
+        and from lin1 to EOF, substitute EOL by "xy&z\"
+6) :% s/\(.*\):\(.*\)/\2:\1/ will reverse 2 sections of every line that has
+    a ':' character.
+7) :% s/.*/& &/   will double the content of all lines, same result as
+   :g/.*/ s//& &/ or :% s/\(.*)\/\1 \1/
+
+Set options
+===========
+1) :set noic     means do not ignore case when doing searching
+2) :set showmode turns on mode indicator
+
+Using ctags, after running ctags
+================================
+1) to go directly into the function from command line, "vi -t funcname()"
+2) to go into the function from vi's command line, ":ta funcname()"
+3) while in vi's edit buffer screen, press CRTL-[
+
+Changing modes
+==============
+When you switch from vi's edit mode to command mode using ESC, vi always
+reposition the cursor key to 1 key backward because you might have come
+into edit mode using 'a' instead of 'i'. You have to manually go forward
+1 key before executing, for instance, a 'cw' command.
+
+Using Backspace and CW and C$ and dW and d$ etc
+===============================================
+1) The vi editor do not refresh the screen buffer after backspace, only
+     editing further chars will reveal that the old chars were actually deleted.
+     (replace chars rather than insert chars)
+2) To refresh buffer, ??
+
+Join lines
+==========
+1) type J in command mode
+
+Going between multiple files
+============================
+1) vi *.c
+2) edit a file, save it, then go to colon mode type :n to go next
+3) type :e# to swap between 2 files
+4) :rew to go back to first
+5) :e filename to go to a particular one on the list
+
+Command retrieval
+=================
+1) apart from . in Visual Edit mode, not available for Colon Mode commands.
+	However, VIM does offer command retrieval using the UP-ARROW key when you
+	are in Colon mode
+
+Replace mode
+============
+1) type R in command mode, replace mode overwrite chars rather than insert
+    but the mode is lost once you use the extended keys (like arrows)
+
+To paste before current cusror
+==============================
+1) Use P instead of p
+
+To reverse all lines in a file
+==============================
+1) :g/.*/m0  i.e. for every line, move it to line 0
+2) :1,$ m0, or :% m0 will not work because it will then try to block move
+    instead of applying the move line by line.
+
+Alternatives to cursor movement keys h,j,k,l
+============================================
+1) arrow keys if it is mksos2
+2) backspace, ctrl-p, ctrl-n, space keys
+
+Read in new info while editing
+==============================
+1) :r !ls -l  will read in result of executing "ls -l"
+2) :r abc     will read in file named "abc"
+
+Extending vi
+============
+1) :% !sort    will sort all contents of current buffer
+2) :% !tr -s ' '   will squeeze all lines and turn multiple ' 's to 1
+3) :1,3  !sed "s/^/>: /"   will change lines 1 to 3 by adding ">: " in front
+
+Undoing changes
+===============
+1) u will undo current change, U will undo all changes to current line
+2) :u will undo all changes of last command
+
+b, B and w, W
+=============
+1) b,w walk front/back 1 word delimited by white space and special chars
+2) B,W walk fornt/back 1 word delimited by white space only
+
+Mapping keys under UNIX
+=======================
+1) :map! tries to map to all modes
+2) :map ^L :% !sort +4^M  will map CTRL-L into "sort by field 4 the edit buffer
+    and do it now". It is entered by typing
+    "map CTRL-V CTRL-L :% !sort +4 CTRL-V CTRL-M" from vi command line
+    ^M is equivalent to hitting an enter key and therefore executes the
+    command. (It is different for MKSOS2, see remark below)
+3) :map ^A A;^[  will map CTRL-A into "go to end of line and append ';', then
+    press Escape key to go back to command mode". The "^[" key stroke is
+    generated by CTRL-V CTRL-[.
+4) :map ^[[1~ ^  will map the HOME key to "go to beginning of line, but do
+    not change to command mode" (verses the I command which changes
+    to command mode). The "^[[1~" is generated by typing "CTRL-V <HOME>".
+    Similar mapping can be done to "F4" key by typeing "CTRL-V <F4>"
+
+Mapping keys under vi of mksos2
+===============================
+1) to map CTRL-E to something, don't have to type CTRL-V CTRL-E, instead
+    just type ":map ^E d$" where "^E" is generated simply by typing CTRL-E
+2) to map F4 key to do "swap 2 words", you'll type :map #4 bdwelp
+        meaning b:back to begining of word, dw: delete the word
+        l: go one char right, e:go to end of word, p:paste the deleted word.
+3) MKSOS2 do not allow ^M in the marocs. You use the CTRL-V CTRL-[ (which means
+	ESC in normal UNIX version of vi) instead to replace what normally would
+	be CTRL-V CTRL-M
+
+Special characters
+==================
+1) To see French E accent in mksos2 vi, :set native then :set 8bits. However, 
+	the "native" and "8bits" option must be set before a file is loaded. If the
+    file is loaded. You may get errors like "non ASCII characters encountered"
+    and the editor will change those characters and therefore ":q" will not
+    work. To do it correctly, should create ex.rc (or .exrc in Unix) which
+    have the correct set commands. For mksos2 vi.exe, you set HOME=c:\util
+    and put the ex.rc there. Then every invokation of vi will cause ex.rc
+    to run before loading any file. 
+2) :set list will turn on/off tab characters and eol characters
+
+To comment a few lines in C++ program
+=====================================
+1) :.,+4 s/^/\/\// will do the job for 5 lines, it has same effect as
+    :.,+4 !sed/^/\/\//
+2) '^' brings you to first non-blank character of a line as a command but
+    it means beginning of a line when used in : mode.
+3) To go to beginning of line in command mode, press '0'
+4) You may alternatively write a program "comment" that reads from stdin and
+    writes to stdout, then you can do ":.,+4 !comment"
+5) To do similar thing in visual mode rather than : mode, do
+   4!!comment   will invoke the comment program on the current plus 3 lines
+   !'a comment  will invoke the comment program from current line up to mark a
+
+To execute ex macros
+====================
+1) :source macroname    where macroname is the file containing the macro
+    e.g. macroname may have a statement like:
+    map #4 A;    then typing ":source macroname" will map the F4 key
+    map ;ce A;   then it will map the keystrokes ";ce"
+2) There is a few macro example coming with vim on it's macros directory,
+    the center macro is a good one but it seems only run with vim but
+    not vi for os2 (mks toolkit), investigate later.
+3) "source" can be replaced by abbreviation "so"
+4) ex.rc is the default macro file that will be executed by vi at invokation
+
+More interesting commands
+=========================
+1) To delete up to end of word but not the following space, do "de"
+
+2) each deletion are placed in buffer 1 to 9, i.e. "1, "2, "3...etc
+    therefore you can use "1pu.u.u.u. to retrieve deletion successively
+    for undoing deletions. Try with dd repeated a few times by '.'
+
+3) To run an external command from vi command mode (non : mode), type
+    !) command , !} command , !! command , ...
+    etc for acting on a sentence, a paragraph, current line. May work only
+    on lines, not on word or char basis.
+
+    If you are on a (,),[,],{,} character, doing   !% command  will actually
+    apply the command to the lines up to the matching character
+    
+    !4+ command  will act command against the current and 4 more lines.
+    4!+ command  will have same effect
+
+4) To find each occurence of "block", go 2 lines down and output that line
+    to file, do   :g/block/.+2w>> filename. The :g work on whole file
+    by default.
+
+    You need to do
+	:g/block/.+2w!>> filename 
+	instead of
+	:g/block/.+2w>> filename 
+	if 'filename' doesn't already exist
+
+	The '>>' causes a concatenation to 'filename'.
+
+	The folliwng is not a valid ex 'w' command
+	:g/block/.+2w> filename  (error in 'w>')
+	'w' only allows :
+	1) 'w filename'  create the file if not exists
+	2) 'w! filename' overwrite the file if already exists
+	3) 'w>>filename' concatenate to the file if already exists
+	4) 'w!>>filename' create and concatenate to the file if doesn't exists
+
+	Therefore both ':g/abc/.w filename' and ':g/abc/.w! filename' is meaningless.
+	It either fail to create the latest 'grep' results, or overwrites all
+	previous 'grep' results in 'filename'
+
+
+5) To write only the current line to a file, do :.w filename  or :.w! filename
+    or :.w >> filename.  By default, :w work on whole file. This is different
+    from :s which only work on current line.
+
+6) :pwd and :cd commands are similar to the native Unix command
+
+7) To repeat ex commands, use :g to do the job.
+    e.g. :1,10 g/^/ 12,17t$     will do 10 times of copying line
+    12-17 to end of file
+
+8) ZZ will be same as :wq
+
+9) to a macro to reverse 2 words. :map #2 bdwlp
+
+10) to go back to a particular place, ma there, then do your stuff and then
+     `a (or 'a)
+
+11) "ayy will yank 1 line to buffer "a, "Ayy will yank a line and append
+    to buffer "a
+
+12) To jump back to previous jump point (jump caused by nG, 'a, ...etc)
+    type ``.
+
+13) To add 4 blank lines, type "4o" then ESC. If you want the same text
+    to be duplicated on all lines, type the text before pressing ESC.
+    Or you can add blanks line by pressing '.' after 'o' command
+
+14) To add 5 characters, type 5i, then type the character, then press ESC
+    If you type a group of chars instead of a char before ESC, that group is
+    repeated 5 times
+
+15) Go to end of file, type G, go to top type 1G, go to any line number
+    n type nG. (G is same as :$, 1G is same as :1)
+
+16) Toggle cases of current char, type ~.
+
+To edit the file named on the current line
+==========================================
+:map #8 :w!^[Ie! ^[:.w! vi.txt^[:so vi.txt
+it means:
+1) write current file, do it ("^[" means CTRL-V+CTRL-[ which means ESC)  
+	In MKSOS2, you use ESC to mean the ENTER key and you must do it that
+	way. In other versions of vi, you can use CTRL-V+CTRL-M to replace some of
+	the CTRL-V+CTRL-[  in the above macro. Actually, vim document says
+	that the mksos2 behaviour is standard vi behaviour 
+2) Insert "e! " in front of current text line, do it
+3) write the current line to "vi.txt", do it
+4) "source" the file "vi.txt"
+
+Alternative form
+:map #8 :w!^[Ie! ^["ayy:@a
+This form make use of executing from the buffer "a. Doesn't always work for
+MKSOS2 unless have the right setting
+
+Using @
+=======
+@ in VIM and mksos2 vi behave a little bit differently.
+1) They both act like pasting the content of a buffer to the vi command
+	line. Therefore, in Visual Command Mode, if you type @a where "a has
+	contents "!dir", it will fail because ":!dir" should be in "a.
+	However, if "a has content "/abc", it will work fine because "/abc"
+	is a valid vi command
+2) VIM allows typing ":@a" which will then expand to ': + contents of "a'.
+	Therefore, if "a has contents "!dir", issuing @a from VIM Colon Mode
+	will result in ":!dir" which is valid vi command to shell-out and
+	execute "dir". However, OS2 does not allow @ to be typed as a Colon
+	Mode command.
+3) "@a" executes immediately in VIM and mksos2 if "a contains newline at the
+    end. (e.g. if "a is created by a "yy" command). If it does not contain
+	newline, it will need an <ENTER> key to be pressed or embedded at the
+	end of "a.  (as CTRL-V-CTRL-M for VIM and CTRL-V-CTRL-[ for OS2)
+	In case where you are trying to make a macro mapping, the buffer "a
+	need not have the <ENTER> character, just put it at end of macro
+	like ":map #10 .....@a^["
+
+Using < and > in :g and / and ? command
+=======================================
+All these commands accept regexp. Also, once any of those commands
+has been executed. Typing just "/", or "?" or ":g" will re-execute
+previous regexp search. i.e. vi do command completion for you (just
+like :s does). In addition, "/\<print" will find only "print" where
+it follows immediately after a "white space". Similarly, "/print\>"
+
+Setting autowrite
+=================
+When autowrite is set on, any commands that shell out from vi will cause
+a write to disk before the command is executed. e.g. :!dir  will cause
+a copy of the current file to be saved to disk before "dir" is executed.
+Therefore the following macro will update the timestamp of the current file
+even though apparently no change is made to the file by that macro.
+	map #1 lbyw$mba:!qh -u p`bld0:.w! /qh.viu:source /qh.vil
+Here the ":!qh -u ...." which was eventually "sourced" will cause the file
+to be autosaved before "qh" is executed.
+
+Special EX chars
+================
+1) # means the alternate file and % means the current file
+2) Therefore  ":!cp # abc" copy the alternate file as "abc" in current dir 
+              ":!cp % abc"  copy the current file as "abc" in current dir 
+3) ":r !grep % UM"  will find all lines in current file and import it under
+	current cursor position
+
+Generating header files from source file
+========================================
+1) Use my own tags program :  ":r !tags %"
+2) use ed command to add to end of file : ":g/^[a-z]/.,/^{/-t$"
+3) use ed command to write to file "out" : ":g/^[a-z]/.,/^{/-w>>out"
+Note : (1) works perfectly. (2,3) doesn't seem to work. The file has
+    to be extremely well behaved for the above "g:" command to work.
+	Using an awk script should do a much better job. 
+    The ":g" command means :
+    "For each line that starts with a to z, find the next line that starts
+    with '{'. Then go back by 1 (the - sign). Copy the current line up
+    to that line to end of file"
+    
+    Therefore, input like
+    char abc;
+    char cd;
+    Func A()
+    {
+    }
+
+    will result in:
+    char abc;
+    char cd;
+    Func A()
+    char cd;
+    Func A()
+
+    Input like
+    char abc;
+    char cd;
+    Func A()
+     {
+     }
+
+     will also fail
+
+To insert a line under every line in a file that has a particular pattern
+=========================================================================
+1) type the line in line 1 of the file (use the O command to open the new line
+	while at top of file)
+2) :g/pattern/1t.
+Similarly, to transfer 2 lines from top to 2 lines below lines matching a
+pattern. Do  :g/pattern/1,2t.+1
+
+
+To repeat every line
+====================
+1) :g/.*/t.  will give you 
+		line1
+		line1
+		line2
+		line2
+	repeating the command will gives you 4 of each lines, 8 of each lines...etc
+2) If you want 3 of each line
+	1) do :se nu
+	2) do :g/.*/.w>>out
+	3) exit file and edit "out", which has a line num along each line
+	4) do :r out
+	5) do :r out
+	6) do :%!sort
+	7) then remove the line numbers
+3) To do it quicker for 3 of each
+	do g/.*/.,.+1t.
+	but the first and last line would not be copied correctly. And it
+	works for only "3 of each". doing g/.*/.,.+2t.  will not give
+	a good set of "4 of each"
+
+
+To find the first/last word based on delimiter "\"
+==================================================
+1) to parse C:\ABC\DEF\GHI.J into it's filenam. result=GHI.J
+	simply do  :s/.*\\\(.*\)/\1/      (finds rightmost '\')
+2) to parse C:\ABC\DEF\GHI.J into it's pathnam. result=C:\ABC\DEF
+	do :s/\(.*\)\\.*/\1/              (finds rightmost '\')
+3) to parse C:\ABC\DEF\GHI.J into it's drive nam. result=C:
+	do :s/\\.*//                      (finds leftmost '\')
+4) to get rid of the drive name. result=ABC\DEF\GHI.J
+	do :s/[^\\]*\\//
+5) to parse for the first level of subdir. result=C:\ABC
+	do :s/\([^\\]*\\[^\\]*\)\(.*\)/\1/
+6) to parse for the last level of subdir with filename. result=DEF\GHI.J
+	do :s/\(.*\\\)\([^\\]*\\[^\\]*$\)/\2/
+7) to get rid of 2 levels of directory and the drive name. result=GHI.J
+	doing  :s/\([^\\]*\\\)\1\1// will NOT work because "\1" means
+	the result of the first set of "matched" characters inside the \(\),
+	it doesn't mean repeating the regexp inside that \(\) group.
+	You have to explicitly repeat the regexp to achieve the desired result
+
+
+Searching either one or other pattern
+=====================================
+1) In VIM for w32, the following command will look for next occurrence of
+	'bbb' or '888' :
+	/bbb\|888/
+2) And :g/bbb\|888/p will show you lines that contains either 'bbb' or '888'
+3) And :%s/bbb\|888/xxx/ will substitute bbb or 888 to xxx
+The technique works for grep but fails for sed
+
+Extended regular expressions
+============================
+1) vim doesn't seem to support extended regexp like:
+	X\{m,n\}   find m to n occurrence of X  (sed OK, grep fails)
+	\d         find any digit, equivalent to [0-9]  (sed fails, grep fails)
+
+using :sh in vim 4.0 under NT
+=============================
+1) To 'shell' out using the :sh command, the SHELL environment variable must
+be set correctly. In particular, for vim under winnt4 in UBS, you should do
+
+:se shell=c:\winnt4\system32\cmd.exe
+
+If you have an environment variable SHELL in NT and that variable points to
+something else. You can include the above line in the _vimrc (or .exrc in 
+Unix env) to override the SHELL env var and info vi of the correct 'sh' to
+use
+
+using vim 5.7 under cygwin
+==========================
+1) It seems to use %VIM% variable to find where it should look for help text.
+it will look for %VIM%\doc\help.txt when you press PF1 from within a vim 
+editing session
+
+2) VIM 5.7 in cygwin environment uses cygwin's term info and therefore 
+understands what TERM=cygwin means. TERM type 'cygwin' is the cygwin 
+environment's default setting.
+
+3) VIM 5.7, however, doesn't seem to use %VIM%\_vimrc for initialisation.
+Tried %VIM%\.exrc and %VIM%\_exrc, neither will work. However, when I
+create ~/.exrc in my cygwin's home dir, the initialisation is successful.
+You have to enable :sh to work by include a line (in Unix path style):
+:se shell=c:/cygwin/bin/bash    or
+:se shell=c:/winnt4/system32/cmd.exe
+
+
+to do some editing in batch, non-interative mode
+================================================
+This can be done by using the ex commands of vi, and then invoking the
+'ed' utility. The ex mode of vi is actually superset of 'ed's functionality.
+
+example :
+ed my.java < my.ed     or
+ex - my.java < my.ed   or for some versions of 'ex', just
+ex my.java < my.ed
+
+where my.ed is the script file that contains all the edit commands that
+you want to apply against my.java, e.g.:
+g/ML_Text/.,+3p
+
+'ex' is actually a close relative of vi and therefore in some versions of
+vi the startup file is called exrc. In fact in Unix, if no 'ex' exists,
+you may be able to make vi behave as 'ex' by simply copying vi to ex, then
+start ex. Alternatively vim allows you to start in 'ex' mode if you
+start the vim with option -e. Therefore, you can also run the batch editing
+using vim like below :
+
+vim -e my.java < my.ed
+
+Or you can consolidate everything from within a shell-script using a here-doc
+
+#!/bin/sh
+
+# remove workfile 'abc'
+/bin/rm -f abc > dev/nul 2>&1
+
+# create workfile 'abc' here, or else you must do
+# 'w!>>abc' instead of 'w>>abc' inside the here-document below
+touch abc
+
+ex - my.java <<eof
+g/ML_Text/.,+3w>>abc
+g/ML_Text/s//ML_TEXT/g
+wq
+eof
+
+Why does the following ed script fails with a '?' noticfication by ed?
+======================================================================
+1,$s/co -P/co -g -P/
+w
+q
+
+Reason 1 : invisible character at the end of any of the 3 lines in the script.
+Reason 2 : line 1 results in no match
+
+The problem happens only for Solaris 2.6's 'ed' or Redhat Linux 'ed'. 
+No problem if running
+/usr/bin/ex -, or the 'ex' of vim on either Unix/cygwin platform.
+
+To deal with "Reason 2", you can change the substitution into the 'global'
+format, like :
+g/co -P/s//co -g -P/
+
+Doing field based processing
+============================
+Field separator options in various Unix utilities
+
+cut, paste : -d"!"
+sort, join : -t !
+awk        : -F!
+sybase isql: -s "!"
+
+To do field based processing in ed/ex/sed/vi, you have to make effective
+use of regular expressions. Aussmes that the tab character is the field
+separator, then the following command :
+s/\([^	][^	]*	\)\([^	][^	]*	\)\(.*\)/\1BB	\3/
+or the following in versions of vi that understands the regexp '+':
+s/\([^	]+	\)\([^	]+	\)\(.*\)/\1BB	\3/
+
+will replace the 2nd field of the line :
+aa	bb	cc	dd	ee
+
+into :
+aa	BB	cc	dd	ee
+
+Please use ':se list' to see the above tab characters as ^I.
+Please use ':se nolist' to undo the effect of "se list"
+
+Multiple windows in vim
+=======================
+create widnow : Ctrl-W, then n
+move to top window : Ctrl-W, then t
+move to bottom window : Ctrl-W, then b
+
+also can do following:
+:sp to split windows
+Ctrl-W, Ctrl-W to switch between windows
+
+To space everyline with a blank line
+=====================================
+1) create a blank line at top, i.e line 1
+2) :g/.*/1t.
+
+turn off syntax coloring for vim
+================================
+:syn off
+
+turn off search highlighting
+============================
+:se nohlsearch   for the whole session
+:nohl            for the current search
+
+to execute the contents of the file
+====================================
+(1) pass whole script to execute in shell, without replacing the script
+- make sure the file is made 'executable' (i.e. !chmod 755 %)
+- make sure the script has #!/usr/whatever as first line
+- !%  will then pass the whole file to execute in shell, in turn invoking #!/usr/whatever
+
+(2) pass whole script as input to external command (that also execute in shell),
+replace the script with output
+- :% !ruby
+
+(3) similar to (2), without replacing the script
+- :%w !ruby
+
+(4) to run the part of the contents of the file
+- :'a,'b !ruby   replace 'a to 'b with output
+- :'a,'bw !ruby  do not replace 'a to 'b with output
+
+record and use macro
+======================
+qa...q   to record macro named 'a'
+@a       to run the macro
+example: qa0f r<ENTER>q  will record macro 'a' that replace ' ' with a line break
+4@a will then run the macro 4 times
+
+split line using '\r'
+=========================
+:s/{/\r{/g  split the line on every '{'
+
+vim easy special characters
+===============================
+vim allow representing special characters in scripts like
+<F2> to mean #2  function key 2
+<CR> to mean 
+  hitting Enter/carriage return
+\r to mean 
+    carriage return
+<ESC> to mean  hitting Escape
+
+Navigating multiple files
+=============================
+- vi t.txt to open a list of files from command line
+- :n to go to next in the list
+- :e# to edit previous file
+- : rew to return to 1st file in a list
+- :buffers to show all files edited so far
+- :b 1 to go to the first file that you opened vi with
+- gf to go to file named by your current cursor on the vi screen
+- gF to go to the particular line of the filename on your cursor, like the grep output format tilename:line
+
+Construct comment line for each line of table-analysis
+================================================
+File content is below :
+analyze tableA ..
+analyze tableB ..
+analyze tableC ..
+analyze tableD ..
+analyze tableE ..
+%s/\(.*\)/\1 comment '\1'/     (repeat and modify original line in place)
+:%s/\(prompt.*\)/
+\1/       (line break result of first step into 2 lines) can I use \r instead of 
+ ?
+analyze tableA ..
+comment 'analyze tableA ..'
+analyze tablesB ..
+comment 'analyze tableB ..'
+analyze tableC ..
+comment 'analyze tableC ..'
+analyze tableD ..
+comment 'analyze tableD ..'
+analyze tableE ..
+comment 'analyze tableE ..'
+
+How to add line number to a file in vi
+==================================
+cat -n a..sql > b.,sql will work, no need to use vi
+in vi, do ':%!cat -n'
+
+show line number during editing
+==============================
+:se number
+
+ways to Join every other line 
+===========================
+:%normal J
+:g/^/normal J
+qmJjq          (qm...q creates register m), then 15OO@m to exexute 1500 times
+:let @m="Jj" then 1500@m
+
+egrep for matching more than 1 criteria
+====================================
+/abc\|def\|xyz looks for abc or def or xyz
+The '|' need be escaped
+
+searching word under current cursor
+================================
+shift 8, i.e. '*' search forward
+shift 3, i.e. '#' search backward
+
+searching across lines
+=======================
+below will search for "abc" and then any number of lines across, and then "def"
+/abc\_. *def/        \_ means any chars include newline
+or
+/abc[^\r\n]*[\r\n]*def/
+Not always reliable
+alternative way to search, to restrict to line below or line above might be:
+:se number
+:g/abc/. ,+1p
+:g/def/-1,.p
+
+forcing unix format
+====================
+:se fileformats=unix,dos
+
+forcing no creation of backup files *.*~
+===================================
+:se nobackup
+
+to count number of sql files when editing filelist
+===========================================
+just invoke external command
+!grep "sql$" filelist I wc
+
+to print current filename and line number into another file
+====================================================
+1) make use of vim scripting language
+2) make use of vim functions expand(), line(), and concatenation '.'
+3) make use of register as temporary variable
+4) make use of vim command line redirection
+:echo expand('%')": "line(".")                    output to command line "filename : xx"
+:echo expand (' %').": ". line(".")             output to command line "filename:xx"
+:let @z=expand('%'). ":". line(".")          set register z contents to "filename:xx"
+:let @z=expand (' %: p'). ": ". line(".")         set register z contents to "path+filename:xx"
+:let @Z=whatever                        appends 'whatever..' to @z
+:redir >> file                                   appends command line output to 'file'
+:echo  @z
+:redir END                                       end the redirection
+search Internet on above topics using key words like below: a
+'vim current line function, vim current file name, vim string concatenation function'
+below echo register contents into file are searched from internet
+o<C-R>a<Esc>: . , ']w myfile_for_register_a<CR>
+I don't know if it's quicker, but you could use
+:redir >> file
+:echo @a
+:redir END
+in a mapping:
+:map <whatever> :redir! > FILE<CR>:echo .a<CR>:redir END<CR><CR>
+this is the final result: map F11, write filename and line number and content of current line to another file
+map <F11> :redir>>/home/lamal/scale/src/analysis/studyhistory.CR>:echo expand("%:p").":".line(".")<CR>:redir END<CR>: .w>> /home/lamal/scale/src/analysi s/studyhistory<CR>
+
+override /etc/vimrc
+===================
+That file in xhkg6l74dap has line which willset textwidth to 78 every time a txt file is opened
+autocmd BufRead *txt set tw=78
+:vers shows that ~/.vimrc is read after /etc/vimrc, therefore add below line in my own ~/.vimrc
+autocmd BufRead *txt set tw=120
+
+specify HEX in substitution
+===========================
+'ga' to find HEX code of un-printable character, say HEX 1F, then use \%x to prefix it
+%s/\%x1F.* //
+
+use ciw instead of cw, and i", ip, ...
+========================================
+This will allow you to be inside any part of the word and do change from begin till end of word.
+What is more important is to reapply the same change to another word, say on next line, using '.'
+
+If I have { brackets of text }, I can ci{ or yi{ to mean change/copy within the bracket 
+    where { and } can be on seprate lines, also works for [] and ()
+If I have " brackets of text ", I can ci" or yi" to mean change/copy within the " 
+
+To indent the paragraph where my current line is within, '>ip'
+
+If have the "surround" plugin, can do cs{ to change the surround from whatever it was to new values {}
+
+use :Explore (Ex)
+=================
+To open file exploring interface
+:Vexplore (Ve) to split open vertically the file explorer
+:Sexplore (Se) to split open horizontally the file explorer
+
+use fx or tx to find and move to character 'x'
+================================================
+couple that with change commands
+cf(  or ct( will change the text till next occurence of '(' in the line
+such that you do not have to count number of words till '(' to do like '5cw'
+
+relative line number
+=======================
+:set rnu   turns it on
+:set nornu
+
+yank lines till a certain line number
+=====================================
+y:810  where 810 can be before or after current line
+
+yank lines forward and backward
+===============================
+3yk = 4yy
+3yj = 4yy backward
+
+goto few lines forward and backward
+=====================================
+3gj and 3gk goes 3 lines forward and backward 
+
+goto line number x
+===================
+xG
+
+:NerdTree vs netrw
+====================
+Test it in WSL of X1Carbon to see whether it works for me
+netrw does not require any plugin, should learn this first
+netrw :  vi .   will edit current directory, for which vim will bring up netrw
+
+install NERDTree plugin by downloading from github and 
+unzip into ~/.vim/pack/vendor/start/  (for vim8 or above)
+edit .vimrc to make a shorter alias
+
+cnoreabbrev NT NERDTree  (can then type ':NT' instead of ':NERDTree' to invoke it)
+? to flip/flop help text
+q to quit
+go  to preview
+enter to fold/unfold directory
+O    on a directory node to unfold all subdirs
+X    to fold all subdirs
+
+create /home/Alfred/.vim/pack/vendor/start/nerdtree-master/nerdtree_plugin/live_preview_mapping.vim
+to add 'z' key for preview of file
+
+:ter[minal]
+==================
+it opens a window out to the shell, such that I do not need to use TMUX anymore !!
+
+:map <F2> :w<cr>:...
+====================
+you can map the <F2> key to multiple ex commands, :...:...:....
+

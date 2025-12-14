@@ -1,0 +1,423 @@
+To run contents of the currently edited file against a particular program 'js':
+===============================================================================
+1) make sure js is accessible, i.e. in the path
+2) save current content (or in vim, you don't even have to if you want to see result of the run before saving) 3) :!js %
+
+or you can restrict to only a few lines, like :
+:'a,'b w !js
+
+The above command is not same as
+:%!js  which will replace your file content with stdout of running js against the file's content
+:'a,'b!js which also replace the section between bookmark a and b with stdout of running js against that section
+
+you typically wants to do sorting with above command, which will be fine, like:
+:%!sort
+
+To run the content as a script file in itself, without exiting to shell and run from there
+===========================================================================================
+If you are editing like below
+
+#!/usr/local/bin/perl -w
+$myStr = "Hello";
+print "myString : $myStr\n";
+
+or
+#!/usr/local/bin/ruby
+puts 'Hello'
+
+or
+#!/usr/bin/scriba
+print "Hello"
+
+or
+#!/usr/local/bin/js
+print("abc");
+
+or
+#!/usr/local/bin/gst
+'hello' printNl.
+3 sqrt printNl.
+
+or
+#!/usr/bin/php
+<?php
+print "Hello\n";
+?>
+
+Make sure the file has been marked executable. Then you can type below to execute the file 
+because of existence of the shebang (#!) line
+
+:!%
+
+The extension of the file doesn't matter as long as the shebang line identify the shell correctly 
+
+Build a mapping in Mac's ~lamalfred/_vimrc to facilitate the above actions, that :
+1) chmod the code into 755. Setting 'umask 022' will not create files with permission 777.
+Files are created with default 666 - 022 = 644 = rw-r--r--. You must use chmod explicitly
+to create permission 755 files
+2) cat the code
+3) execute the code
+The mapping:
+
+"chmod to allow exec of the file, cat the file and exec the file
+map #2 :!chmod 755 %:!cat %:!%
+
+
+Color settings
+==============
+to find vi variable $VIMRUNTIME
+:echo $VIMRUNTIME
+you'll find that they are vim and gvim use different $VIMRUNTIME
+
+to find available color schemes
+cd $VIMRUNTIME
+ls colors
+
+to change color scheme
+:colorscheme pablo
+pablo and ron and desert seemed to work quite well for vim on mac's terminal sessions when
+background color is set quite dark (but not black)
+
+to see current color
+:echo colors_name
+
+or
+:let
+
+GVIM color setting
+==================
+to set color scheme to 'darkblue'
+:colo darkblue
+The whole set of color scheme is defined in c:\vim\vim62\colors\*
+
+
+:highlight  shows all highlighting scheme
+to set background and foreground color
+:highlight Normal guibg=Black guifg=White
+
+folding
+========
+foldmethod=indent/syntax/manual/..., see :he(lp) fold-method
+
+set foldmethod=indent 
+set foldenable
+
+folding commands start with z
+zc close, zo open, zR open All, zA open/close All of current line
+
+split windows
+==============
+:sp            split horizontally
+:sp filename   split window and bring in filename
+:new filename  same as :sp filename
+
+:vert split    split vertically 
+:vs            split vertically 
+Ctrl-W Ctrl-W  navigate among the windows
+
+:res 30        set height to 30
+:res +20       add 20 to height
+:res -20       minus 20 from height
+:vert res 30   set width to 30
+:vert +20      add 30 to width 
+
+1 Ctrl-W w            cursor to window 1
+:4 wincmd w           cursor to window 4
+:exe 3 . "wincmd w"   cursor to window 3
+
+
+tabs (vim7 and gvim7)
+=====================
+vi -p *.js         open all *.js in vim
+:set showtabline=0 (or 1)
+:set tabline=%!ShortTabLine()  format my tabline using custom function ShortTabLine()
+:tabnew filename   open new tab and edit filename
+:tabnew #3         open new tab and edit buffer 3
+:tabnext           to go to next tab
+:tablast           to go to last tab
+:tabfirst          to go to first tab
+:tabr              tabrewind = go to first tab
+:tabdo q!          quit all files
+gt and gT          go to the next/prev tab
+1gt                go to 1st tab
+4gt                go to 4th tab
+
+Since Mac Terminal doesn't pass-thru the PageUp/Down key to terminal mode vim, 
+defined Ctrl-Right/Left-arrow for gt and gT.
+3Ctrl-Right-arrow  go to 3rd tab
+
+Once in X11 and started gvim, the Ctrl-Right/Left doesn't move thru tabs as mapped in _VIMRC.
+This is because the keycodes registered into _VIMRC based on those captured in a Terminal session vim,
+(therefore using Terminal's keyboard mappings) are different in X11.
+
+The Terminal | Windows Settings | Keyboard Inspector shows:
+- Ctrl-Right/Left-arrow generates some keycode, which can be shown by Ctrl-v Ctrl-Right/Left-arrow
+- PageUp/Down and Home/End keys being mapped by Terminal to show buffer previous/next page and top/bottom
+
+Is there a way to programmatically, when I enter vi:
+- disable the Terminal pageup/down mapping and allow their keycode to be passed to vi ?
+
+Changing the Keyboard Inspector's key mapping doesn't seem to work, neither in Tiger nor Leopard.
+Maybe need to check the Mac's downloaded books to see what is wrong?
+
+See below for 'Key Mapping' for more info
+ 
+buffers
+========
+quit or write all buffers
+:qa
+:qa!
+:wa
+:wa!
+:xa
+:xa!
+
+:ls or :buffers or :files  list all buffers
+:bn   next buffer
+:bp   previous buffer
+:b n  n-th buffer
+
+plugins sometimes creates work buffers (VTreeExplorer loads the directory and file list)
+or hide some buffers (like project.vim hides the project definition file's buffer)
+:ls!  list all the buffers
+
+args
+====
+when you 'vi *.js', the list of file names become the args list for vi
+:ar[gs]      prints args list
+:ar {list}   reset the arg list with new {list}
+:n           next arg
+:prev        prev arg
+:rew         back to 1st arg
+:3n          to 3 later arg (not in vi)
+:3argu       to 3rd arg (not in vi)
+
+Once the BufExplorer plugin is loaded, some of the above commands doesn't work
+e.g. args doesn't show the arglist but shows [[BufExplorer]]
+
+autocompletion
+==============
+Ctrl-n                 to find text using current file's words so far
+
+:set dict=~/dict.txt   to bring in dictionary
+Ctrl-x Ctrl-k          using brought in dictionary
+
+diff files
+==========
+:vert diffsplit out1    compare against out1, splitting vertically or
+vimdiff out out1        or
+vim -d out out1
+
+
+to match a particular file type to syntax
+==========================================
+- in vi :echo $VIMRUNTIME to check where your vim install dir is
+- edit the filetype.vim, very self explainary, I added '*.bsh' to map to filetype 'java'
+alfredmacmini:/usr/local/share/vim/vim71 lamalfred$ sudo vi filetype.vim
+- You can also learn the command inside the filetype.vim (the mapping and then :setf) and use it in ~/_VIMRC
+
+opening file under cursor
+=========================
+simply use 'gf', or the following mapping:
+"F9 - edit the file named by current word, VIM only commands
+"-- redirect to register z, echo 'e! ' into it, 
+"-- yank current word and append it to register z, execute register z
+:map <F9> :w!:redir @z:echo 'e! 'lB"ZyEk:@z
+
+plugins
+=========
+- Downloaded the project/rails/dbext/bufexplorer.vim plugins
+- Some of them are installed in ~/.vim  (the *.vim goes to plugin dir, *.txt goes to doc dir)
+- need to run ':helptags ~/.vim/doc' to enable the help contents in ~/.vim/doc to be accessible
+- then ':he project', ':he rails', ':he bufexplorer' to see how to use various plugins
+
+- :let to see that the plugins are active
+- \be  or  :BufExplorer to invoke bufExplorer
+  t to open selected buffer in new tab, 
+  Enter key to edit with current window
+  q to leave the bufExplorer
+
+- For project.vim plugin, has example at WorkAndHint/javascript-rhino/proj
+  The 'proj' file was first created with no file entries in it, only the skeleton
+  ':he project-mappings' find the various \r, \R, ...commands. 
+  Use \r to 'refresh' the proj file with the file contents
+  Defined bash function 'vp' to invoke ':Project'
+  'vp proj' will open that project
+
+navigating the help
+===================
+:he           to go to top level help
+:he buffer    to go to topic 'buffer'
+ctrl-]        to go to a tag
+ctrl-t        to go back
+:he exists    to find what 'exists' does
+:he functions to find out about built-in functions
+:function     to find out about plugin functions
+
+Inside help, usr_4*.txt and eval.txt gives details about writing vim script
+
+key mapping
+============
+- in vim in Mac, you can either type 'map #1 ..' or 'map <F1> ..' to mean the F1 key
+
+- It is not easy to find keycode for special keys
+you can try 'ctrl-v' + key-combinations to see if the ctrl-v can generate correct keycode for you.
+For example:
+'ctrl-v' + 'ctrl-k' is supposed to generate keycode for <ctrl-k>
+'ctrl-v' + 'ctrl-B' is supposed to generate keycode for <ctrl-b>
+'ctrl-v' + 'ctrl-s' is supposed to generate keycode for <ctrl-s>
+'ctrl-v' + 'alt F1' is supposed to generate keycode for <alt F1>
+'ctrl-v' + 'ctrl-arrowup' is supposed to generate keycode for <ctrl-arrowup>
+'ctrl-v' + 'shift-home' is supposed to generate keycode for <shift-home>
+'ctrl-v' + 'shift-F1' is supposed to generate keycode for <shift-F1>
+
+- However, the keycode generation isn't always possible. For example, when I opened vim in Mac's Terminal session:
+I cannot generate ctrl-uparrow or ctrl-downarrow, but can generate ctrl-leftarrow and ctrl-rightarrow.
+I cannot generate shift-F1 but can generate shift-home
+I cannot generate shift-PageUp but can generate shift-home
+I cannot generate ctrl-s but can generate ctrl-b and ctrl-k
+
+- below is a sample of results that are successful in Mac, which could form part of _VIMRC
+"map #1 :buf 1
+" entered as Ctrl-v, shift-home
+map [H :bn
+" entered as Ctrl-v, shift-end
+map [F :bp
+" entered as Ctrl-v, alt-F1
+map [17~ :buf 1
+" entered as Ctrl-v, alt-F2
+map [18~ gt
+" entered as ctrl-v, ctrl-right-arrow
+map [5C gt
+" entered as ctrl-v, ctrl-left-arrow
+map [5D gT
+" entered as ctrl-v, escape, then literal string '<F1>'
+map <F1> :ls
+" entered as ctrl-v, ctrl-B
+map  :BufExplorer
+
+- However, in Acer5670's cygwin vim session, the resultant success/failure are different from the Mac Terminal.
+Even for those that are successful in both env, the resultant keycode are different.
+That means the above mapping will not work in Acer5670's _vimrc
+This means you cannot take examples and solutions that you find from the Web for granted.
+
+I suspect changing keyboard, OS, or session (xterm of X11 verses Terminal) may also change the results. 
+May this be reason why some console application's arrowup/down key work, e.g. mysql in mac, 
+while others doesn't, e.g. Beanshell in mac ??
+
+- Web tips said gvim can use the symbolic vimcode like <C-a> rather than the hardware keycode above.
+Tested givm under Mac's X11 env, and found none of the above mapping works, except the simple F1 and Ctrl-B.
+In fact, the Home/End and Ctrl-arrowkeys behaves very differently in the X11 env than in Terminal session.
+Within X11, there isn't much difference whether it is vim or gvim.
+Also, the <C-a> mapping doesn't work. Probably it will be different again in Linux
+
+- the above <Esc><Fx> mapping works in Mac's Terminal and X11-xterm session, but failed in Acer5670 cygwin
+
+- That means for portability across various env, should restrict mapping to only the simple <Fx> keys 
+and <ctrl>+letter key. However, even using the <ctrl>+letter keys can also conflict with a lot of
+default key bindings. e.g. Ctrl-Z is defined by unix to suspend task, ctrl-B is defined by vi to go
+1 screen back. Re-defining such keys will take away their original meaning
+
+- type ':help map-keys-fail' and ':help map-alt-keys' amd ':help map-special-keys'
+
+Show ascii code of characters in vim
+====================================
+ga
+
+Show/Hide invisible characters in vim
+====================================
+:se list    (not :ls, which is same as :buffers and :files)
+:se nolist
+
+Input external command's results
+================================
+:r !pwd     read result of 'pwd'
+:% !sort    submit all of my buffer to sort, then read the result back
+
+Check vim's build options
+=========================
+:version    tells you, for instance, whether the ruby extension has been build into vim or not
+
+Standard file-explorer (netrw) plugin
+=====================================
+This standard plugin allows you to start a file manager using:
+vi .
+:e .
+:E
+
+then you :
+i   switch display format 
+-      go up a directory
+enter   go into a directory, or edit the file
+o, O    edit a file in a new Window
+
+VTreeExplorer plugin
+====================
+:VTreeExplore   to show current dir, see ~/_VIMRC's F10 mapping
+
+Rebuilding vi to have "sign" and "Ruby" support
+===============================================
+unzip the src code
+./configure --with-features=big --enable-rubyinterp
+make
+make install
+
+redirect message output to some where
+======================================
+:redir > out    redirect to file 'out'
+:version        shows version on screen, but also to file 'out'
+
+:redir > @z     redirect to register z
+:version        shows version on screen, but also to register z
+"z p            paste output of register z to current edit buffer, i.e. after cursor on screen
+
+vi +version > out   get warning saying you are not editing on screen, pretty much making vi work like 'ed' or 'sed'
+:q!                 you can't see your typing of this line, but it will work. 'out' will contain output of ':version'
+
+building new commands
+=====================
+See ~/_VIMRC, which adds new command mappings Hint and Rc to edit hintvim and ~/_VIMRC quickly
+
+Using the ruby interface to program vim (vim has to be build with +ruby)
+=========================================================================
+:ruby puts VIM::Window.count              to show how many windows are opened
+:ruby puts VIM::Window[1].buffer.name     to show which buffer is in Windows[1], i.e. 2nd window
+:ruby VIM::Window[1].buffer.append(41, "test")    to append a line "test' to line 41 of 2nd window
+:ruby puts $curbuf.name                    print current buffer's name
+
+creating commands
+==================
+command Hint :new $workdir/vim/hintvim.txt    creates :Hint to edit the hint file
+delcommand Hint                               remove user created command 'Hint'
+command                                       shows all user created commands
+
+using functions
+=================
+:function             shows all user defined functions
+:function A           shows details of function 'A'
+
+:he function-list   to see simple explanation of a whole list of builtin functions
+:he functions   to see simple explanation of a whole list of builtin functions sorted by name
+
+:echo confirm("Pick one", "&One\n&Two\nT&hree", 1, "Error")  
+is equivalent to
+:let a=confirm("Pick one", "&One\n&Two\nT&hree", 1, "Error")
+:echo a
+
+To call a function directly without using 'let'
+:call A(...)
+
+:echo expand("<cWord>:p")        current Word's full path name
+:echo expand("<cWord>:t")        current Word's tail name
+
+:call append (5, "test")         append the line "test" to line 5 of current buffer
+:echo getline (5)                get line 5 of current buffer
+:echo setline (5, "test")        replace line 5 of current buffer with "test"
+:echo system("pwd")              runs Unix command through "system" function
+
+A lot more examples in the vimbook-OPL.pdf. 
+
+vim server
+==========
+vim can be started in client-server mode, read about it using ':he client-server'
+
