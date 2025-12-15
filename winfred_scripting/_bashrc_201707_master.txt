@@ -1326,21 +1326,22 @@ python -m SimpleHTTPServer
 
 p3() {
     python="none"
-    if [ `which python3.9 2>/dev/null` ]; then python=python3.9;
-    elif [ `which python3.8 2>/dev/null` ]; then python=python3.8;
-    elif [ `which python3.7 2>/dev/null` ]; then python=python3.7;
-    elif [ `which python3.6 2>/dev/null` ]; then python=python3.6;
-    elif [ `which python3.5 2>/dev/null` ]; then python=python3.5;
-    elif [ `which python3 2>/dev/null` ]; then python=python3;
-    fi
-
-    #if [ which python3.9 2>/dev/null ]; then python=python3.9;
-    #elif [ which python3.8 2>/dev/null ]; then python=python3.8;
-    #elif [ which python3.7 2>/dev/null ]; then python=python3.7;
-    #elif [ which python3.6 2>/dev/null ]; then python=python3.6;
-    #elif [ which python3.5 2>/dev/null ]; then python=python3.5;
-    #elif [ which python3 2>/dev/null ]; then python=python3;
+    # no need to use '[ ...]', otherwise you need to do ` ... `
+    #if [ `which python3.9 2>/dev/null` ]; then python=python3.9;
+    #elif [ `which python3.8 2>/dev/null` ]; then python=python3.8;
+    #elif [ `which python3.7 2>/dev/null` ]; then python=python3.7;
+    #elif [ `which python3.6 2>/dev/null` ]; then python=python3.6;
+    #elif [ `which python3.5 2>/dev/null` ]; then python=python3.5;
+    #elif [ `which python3 2>/dev/null` ]; then python=python3;
     #fi
+
+    if which python3.9 2>/dev/null; then python=python3.9;
+    elif which python3.8 2>/dev/null; then python=python3.8;
+    elif which python3.7 2>/dev/null; then python=python3.7;
+    elif which python3.6 2>/dev/null; then python=python3.6;
+    elif which python3.5 2>/dev/null; then python=python3.5;
+    elif which python3 2>/dev/null; then python=python3;
+    fi
 
     if [ $python = "none" ]; then
         echo "no python version 3.x in the sytem"
