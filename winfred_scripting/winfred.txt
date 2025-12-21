@@ -105,6 +105,7 @@ multiline echo
 
 mixed use of ' and "
     please check _bashrc file for examples
+_bashrc_201707_master.txt
 
 find and xargs
     alfredMacBookAir /Users/alfred/IdeaProjects OSX
@@ -176,3 +177,48 @@ man awk
 
 p3 vs p3a (will give you p3a after explaining it?)
 why p3() in _bashrc need `...`?
+
+============================================================================0
+programs :
+    shell built-in
+    installed exe
+    installed scripts
+    functions defined in scripts
+    alias from _bashrc or scripts
+
+p3 revisited
+
+&& ||  if, test  revisted
+	when usingh 'if' on a singleline, be careful of the ';', must add for both 'then' and 'fi'
+		if test -f winfred.txt; then echo "file exists"; fi
+	The above is same as
+		if [ -f winfred.txt ]; then echo "file exists"; fi
+	The above has no 'else', is same as below using &&, no if/then/else/fi
+		test -f winfred.txt && echo "file exists"
+
+boolean and/or in conditions
+with [...] or test, you use -a, -o
+
+[..] vs [[...]]
+&&, || can be used in [[ ]]
+
+shell arithematic
+    echo $((2 + 3))
+
+1 line awk code
+
+make sure your _bashrc works
+
+type vs \type inside the _bashrc
+
+====================================================================================
+
+string manipulation
+
+eval, (), ``
+
+ascii text highlight
+
+other scripts I use in office
+- vm
+- updateReleaseBranch
